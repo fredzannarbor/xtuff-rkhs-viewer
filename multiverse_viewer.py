@@ -12,6 +12,16 @@ import networkx as nx
 from pathlib import Path
 import os
 
+# LLM integration
+try:
+    from nimble_llm_caller import call_llm
+    from dotenv import load_dotenv
+    load_dotenv()
+    LLM_AVAILABLE = True
+except ImportError:
+    LLM_AVAILABLE = False
+    st.warning("⚠️ nimble-llm-caller not installed. LLM features disabled. Install with: pip install nimble-llm-caller")
+
 # ============================================================================
 # RKHS FORMALIZATION DATA STRUCTURES
 # ============================================================================
@@ -194,12 +204,205 @@ def create_sample_universe(n_nodes: int = 100) -> RKHSUniverse:
     return universe
 
 # ============================================================================
+# TEXT EXTRACTION AND LLM FUNCTIONS
+# ============================================================================
+
+def extract_text_from_nodes(nodes: Dict[str, RKHSNode], node_ids: Set[str]) -> str:
+    """Extract all text content from selected nodes"""
+    text_parts = []
+
+    for node_id in sorted(node_ids):
+        if node_id not in nodes:
+            continue
+
+        node = nodes[node_id]
+        text_parts.append(f"=== {node_id} ===")
+
+        # Title
+        if 'title' in node.content:
+            text_parts.append(f"Title: {node.content['title']}")
+
+        # Description
+        if 'description' in node.content:
+            text_parts.append(f"Description: {node.content['description']}")
+
+        # Properties
+        if 'properties' in node.content:
+            text_parts.append("Properties:")
+            for key, value in node.content['properties'].items():
+                text_parts.append(f"  {key}: {value}")
+
+        text_parts.append("")  # Blank line between nodes
+
+    return "\n".join(text_parts)
+
+def morph_text_with_llm(text: str, prompt: str, model: str = "claude-3-5-haiku-20241022") -> Optional[str]:
+    """Apply LLM transformation to text"""
+    if not LLM_AVAILABLE:
+        return None
+
+    try:
+        full_prompt = f"{prompt}\n\nText to transform:\n{text}"
+
+        response = call_llm(
+            messages=[{"role": "user", "content": full_prompt}],
+            model=model,
+            max_tokens=4000,
+            temperature=0.7
+        )
+
+        return response
+    except Exception as e:
+        st.error(f"LLM call failed: {e}")
+        return None
+
+def apply_llm_morph_to_nodes(
+    universe: RKHSUniverse,
+    node_ids: Set[str],
+    prompt: str,
+    field: str = "description",
+    model: str = "claude-3-5-haiku-20241022",
+    batch_size: int = 5
+) -> int:
+    """Apply LLM transformation to multiple nodes intelligently"""
+    if not LLM_AVAILABLE:
+        st.error("LLM features not available. Install nimble-llm-caller.")
+        return 0
+
+    modified_count = 0
+    node_list = list(node_ids)
+
+    # Process in batches for cost/performance
+    for i in range(0, len(node_list), batch_size):
+        batch = node_list[i:i+batch_size]
+
+        for node_id in batch:
+            if node_id not in universe.nodes:
+                continue
+
+            node = universe.nodes[node_id]
+
+            # Get current text
+            if field == "description":
+                current_text = node.content.get('description', '')
+            elif field == "title":
+                current_text = node.content.get('title', '')
+            else:
+                continue
+
+            if not current_text:
+                continue
+
+            # Transform with LLM
+            transformed = morph_text_with_llm(current_text, prompt, model)
+
+            if transformed:
+                # Update node
+                if field == "description":
+                    node.content['description'] = transformed
+                elif field == "title":
+                    node.content['title'] = transformed
+
+                modified_count += 1
+
+    return modified_count
+
+# ============================================================================
+# LIFE TIMELINE FUNCTIONS
+# ============================================================================
+
+def get_life_domains() -> List[str]:
+    """Get standard life domains"""
+    return [
+        "education",
+        "career",
+        "relationships",
+        "family",
+        "health",
+        "life_milestone",
+        "external_event",
+        "personal_growth",
+        "financial",
+        "creative"
+    ]
+
+def get_domain_color(domain: str) -> str:
+    """Get color for life domain"""
+    colors = {
+        "education": "#4A90E2",      # Blue
+        "career": "#F5A623",          # Orange
+        "relationships": "#E91E63",   # Pink
+        "family": "#9B59B6",          # Purple
+        "health": "#27AE60",          # Green
+        "life_milestone": "#E74C3C",  # Red
+        "external_event": "#95A5A6",  # Gray
+        "personal_growth": "#3498DB",  # Light Blue
+        "financial": "#F39C12",       # Gold
+        "creative": "#1ABC9C"         # Teal
+    }
+    return colors.get(domain, "#7F8C8D")
+
+def create_life_event_node(
+    event_id: str,
+    title: str,
+    description: str,
+    year: int,
+    age: int,
+    importance: float,
+    happiness: float,
+    domain: str,
+    dimension: int,
+    parent_ids: List[str] = None
+) -> RKHSNode:
+    """Create a life event node"""
+    if parent_ids is None:
+        parent_ids = []
+
+    # Position: [time_progress, happiness, achievement]
+    time_progress = (year - 1990) / 10.0  # Normalize to reasonable range
+    position = [time_progress, happiness, importance]
+
+    # Kernel features (extend to dimension)
+    kernel_features = position + [0.0] * (dimension - 3)
+    if dimension > 3:
+        kernel_features[3] = importance
+    if dimension > 4:
+        kernel_features[4] = happiness
+
+    node = RKHSNode(
+        id=event_id,
+        position=position,
+        content={
+            "title": title,
+            "description": description,
+            "properties": {
+                "year": year,
+                "age": age,
+                "importance": importance,
+                "happiness": happiness,
+                "domain": domain
+            }
+        },
+        metadata={
+            "date": f"{year}-01-01",
+            "type": domain
+        },
+        kernel_features=kernel_features,
+        timestamp=datetime.now().isoformat(),
+        parent_ids=parent_ids,
+        children_ids=[]
+    )
+
+    return node
+
+# ============================================================================
 # VISUALIZATION FUNCTIONS
 # ============================================================================
 
-def create_3d_network_viz(universe: RKHSUniverse, 
+def create_3d_network_viz(universe: RKHSUniverse,
                           selected_nodes: Optional[Set[str]] = None,
-                          layout_type: str = "position") -> go.Figure:
+                          layout_type: str = "position",
+                          color_by: str = "energy") -> go.Figure:
     """Create interactive 3D network visualization"""
     
     if selected_nodes is None:
@@ -303,34 +506,74 @@ def create_3d_network_viz(universe: RKHSUniverse,
 
         node_text.append(text)
 
-        # Color by properties or default
-        if 'properties' in node.content and 'energy' in node.content['properties']:
-            node_colors.append(node.content['properties']['energy'])
+        # Color by specified attribute
+        if color_by == "domain":
+            # Color by life domain
+            domain = node.content.get('properties', {}).get('domain', 'unknown')
+            node_colors.append(domain)
+        elif color_by == "happiness":
+            # Color by happiness level
+            happiness = node.content.get('properties', {}).get('happiness', 0.5)
+            node_colors.append(happiness)
+        elif color_by == "importance":
+            # Color by importance
+            importance = node.content.get('properties', {}).get('importance', 0.5)
+            node_colors.append(importance)
         else:
-            node_colors.append(0.5)
+            # Default: energy
+            if 'properties' in node.content and 'energy' in node.content['properties']:
+                node_colors.append(node.content['properties']['energy'])
+            else:
+                node_colors.append(0.5)
     
-    node_trace = go.Scatter3d(
-        x=node_x,
-        y=node_y,
-        z=node_z,
-        mode='markers',
-        marker=dict(
-            size=8,
-            color=node_colors,
-            colorscale='Viridis',
-            showscale=True,
-            colorbar=dict(
-                title=dict(
-                    text="<b>Energy</b><br>(node property)",
-                    side="right"
-                )
+    # Handle categorical vs numeric colors
+    if color_by == "domain":
+        # Map domains to numeric values for coloring
+        unique_domains = list(set(node_colors))
+        domain_to_num = {d: i for i, d in enumerate(unique_domains)}
+        numeric_colors = [domain_to_num[d] for d in node_colors]
+
+        node_trace = go.Scatter3d(
+            x=node_x,
+            y=node_y,
+            z=node_z,
+            mode='markers',
+            marker=dict(
+                size=8,
+                color=numeric_colors,
+                colorscale='Plotly3',
+                showscale=False,  # Don't show scale for categorical
+                line=dict(color='white', width=0.5)
             ),
-            line=dict(color='white', width=0.5)
-        ),
-        text=node_text,
-        hoverinfo='text',
-        name='Nodes'
-    )
+            text=node_text,
+            hoverinfo='text',
+            name='Nodes'
+        )
+    else:
+        # Numeric coloring
+        color_label = color_by.capitalize()
+        node_trace = go.Scatter3d(
+            x=node_x,
+            y=node_y,
+            z=node_z,
+            mode='markers',
+            marker=dict(
+                size=8,
+                color=node_colors,
+                colorscale='Viridis',
+                showscale=True,
+                colorbar=dict(
+                    title=dict(
+                        text=f"<b>{color_label}</b><br>(node property)",
+                        side="right"
+                    )
+                ),
+                line=dict(color='white', width=0.5)
+            ),
+            text=node_text,
+            hoverinfo='text',
+            name='Nodes'
+        )
     
     # Create figure
     fig = go.Figure(data=edge_traces + [node_trace])
@@ -435,11 +678,13 @@ def main():
     # Create tabs
     tabs = st.tabs([
         "🌍 Open",
-        "✨ Materialize", 
+        "✨ Materialize",
         "🔍 Browse",
         "🔱 Fork",
         "🎯 Filter",
         "📊 Visualize",
+        "📝 Text/LLM",
+        "📅 Life Timeline",
         "🔢 Mathematics"
     ])
     
@@ -1113,14 +1358,29 @@ def main():
 
                 with st.spinner("Generating visualization..."):
                     if viz_type == "3D Network":
-                        layout = st.radio(
-                            "Layout",
-                            ["position", "force-directed"],
-                            horizontal=True,
-                            help="**position**: Use the actual RKHS coordinates of each node. Shows true geometric relationships in the kernel space.\n\n"
-                                 "**force-directed**: Apply physics simulation to spread nodes apart. Better for seeing network structure when nodes are clustered."
-                        )
-                        fig = create_3d_network_viz(universe, nodes_to_viz, layout)
+                        col_layout, col_color = st.columns(2)
+
+                        with col_layout:
+                            layout = st.radio(
+                                "Layout",
+                                ["position", "force-directed"],
+                                horizontal=True,
+                                help="**position**: Use the actual RKHS coordinates of each node. Shows true geometric relationships in the kernel space.\n\n"
+                                     "**force-directed**: Apply physics simulation to spread nodes apart. Better for seeing network structure when nodes are clustered."
+                            )
+
+                        with col_color:
+                            color_by = st.radio(
+                                "Color By",
+                                ["energy", "domain", "happiness", "importance"],
+                                horizontal=True,
+                                help="**energy**: Default property value.\n\n"
+                                     "**domain**: Life domain (education, career, relationships, etc.). Great for life timelines!\n\n"
+                                     "**happiness**: Emotional state/satisfaction level.\n\n"
+                                     "**importance**: Significance of the event/node."
+                            )
+
+                        fig = create_3d_network_viz(universe, nodes_to_viz, layout, color_by)
                         st.plotly_chart(fig, use_container_width=True)
                     
                     elif viz_type == "2D Projection":
@@ -1178,9 +1438,382 @@ def main():
                     )
     
     # ========================================================================
-    # TAB 7: MATHEMATICS
+    # TAB 7: TEXT/LLM OPERATIONS
     # ========================================================================
     with tabs[6]:
+        st.header("Text Extraction & LLM Operations")
+
+        if st.session_state.universe is None:
+            st.warning("⚠️ No universe loaded.")
+        else:
+            universe = st.session_state.universe
+
+            st.markdown("""
+            Extract text from selected nodes or apply LLM transformations to modify content.
+            This is perfect for:
+            - Extracting descriptions from life events
+            - Rewriting event descriptions in different styles
+            - Summarizing or expanding content
+            - Translating or rephrasing
+            """)
+
+            st.divider()
+
+            # Select node set
+            col1, col2 = st.columns(2)
+
+            with col1:
+                text_node_set = st.selectbox(
+                    "Select Nodes",
+                    ["All Nodes", "Filtered", "Traversed", "Forked"],
+                    help="Choose which nodes to extract text from or transform"
+                )
+
+            # Determine nodes
+            if text_node_set == "All Nodes":
+                selected_nodes = set(universe.nodes.keys())
+            elif text_node_set == "Filtered":
+                selected_nodes = getattr(st.session_state, 'filtered_nodes', set())
+            elif text_node_set == "Traversed":
+                selected_nodes = st.session_state.traversed_nodes
+            elif text_node_set == "Forked":
+                selected_nodes = st.session_state.forked_nodes
+            else:
+                selected_nodes = set()
+
+            with col2:
+                st.metric("Selected Nodes", len(selected_nodes))
+
+            st.divider()
+
+            # Two operation modes
+            operation = st.radio(
+                "Operation",
+                ["Extract Text", "LLM Morph"],
+                horizontal=True,
+                help="**Extract Text**: Copy all text content from selected nodes.\n\n"
+                     "**LLM Morph**: Use AI to transform text in selected nodes."
+            )
+
+            if operation == "Extract Text":
+                st.subheader("📝 Extract Text")
+
+                if st.button("Extract Text from Selected Nodes"):
+                    if not selected_nodes:
+                        st.warning("No nodes selected")
+                    else:
+                        extracted_text = extract_text_from_nodes(universe.nodes, selected_nodes)
+
+                        st.text_area(
+                            f"Extracted Text ({len(selected_nodes)} nodes)",
+                            extracted_text,
+                            height=400
+                        )
+
+                        # Download button
+                        st.download_button(
+                            "📥 Download as Text File",
+                            extracted_text,
+                            file_name=f"extracted_text_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                            mime="text/plain"
+                        )
+
+                        # Clear text option
+                        st.divider()
+                        st.subheader("🗑️ Clear Text")
+                        st.warning("⚠️ This will delete all titles and descriptions from selected nodes!")
+
+                        field_to_clear = st.radio(
+                            "Clear which field?",
+                            ["title", "description", "both"],
+                            help="Choose which text fields to clear from the selected nodes"
+                        )
+
+                        if st.button("Clear Text from Selected Nodes", type="secondary"):
+                            cleared_count = 0
+                            for node_id in selected_nodes:
+                                if node_id in universe.nodes:
+                                    node = universe.nodes[node_id]
+                                    if field_to_clear in ["title", "both"]:
+                                        node.content['title'] = ""
+                                    if field_to_clear in ["description", "both"]:
+                                        node.content['description'] = ""
+                                    cleared_count += 1
+
+                            st.success(f"✅ Cleared {field_to_clear} from {cleared_count} nodes")
+
+            else:  # LLM Morph
+                st.subheader("🤖 LLM Morph")
+
+                if not LLM_AVAILABLE:
+                    st.error("❌ LLM features not available. Install nimble-llm-caller:")
+                    st.code("pip install nimble-llm-caller")
+                else:
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        field = st.selectbox(
+                            "Field to Transform",
+                            ["description", "title"],
+                            help="Which text field should the LLM transform?"
+                        )
+
+                    with col2:
+                        model = st.selectbox(
+                            "Model",
+                            ["claude-3-5-haiku-20241022", "claude-3-5-sonnet-20241022"],
+                            help="**Haiku**: Fast and cheap, good for simple transformations.\n\n"
+                                 "**Sonnet**: More capable, better for complex rewriting."
+                        )
+
+                    prompt = st.text_area(
+                        "Transformation Prompt",
+                        "Rewrite this in a more dramatic, cinematic style:",
+                        height=100,
+                        help="Describe how you want the LLM to transform the text. "
+                             "This prompt will be applied to each node's content."
+                    )
+
+                    batch_size = st.slider(
+                        "Batch Size",
+                        1, 20, 5,
+                        help="Number of nodes to process in each batch. Larger = faster but more expensive."
+                    )
+
+                    st.divider()
+
+                    # Cost estimate
+                    estimated_cost = len(selected_nodes) * 0.001  # Rough estimate
+                    st.caption(f"Estimated cost: ~${estimated_cost:.3f} (approximate)")
+
+                    if st.button("🚀 Apply LLM Transformation", type="primary"):
+                        if not selected_nodes:
+                            st.warning("No nodes selected")
+                        else:
+                            with st.spinner(f"Transforming {len(selected_nodes)} nodes..."):
+                                modified_count = apply_llm_morph_to_nodes(
+                                    universe,
+                                    selected_nodes,
+                                    prompt,
+                                    field,
+                                    model,
+                                    batch_size
+                                )
+
+                            st.success(f"✅ Transformed {modified_count} nodes")
+
+                            # Show sample
+                            if modified_count > 0:
+                                st.subheader("Sample Results")
+                                sample_node_id = list(selected_nodes)[0]
+                                if sample_node_id in universe.nodes:
+                                    sample_node = universe.nodes[sample_node_id]
+                                    st.markdown(f"**{sample_node.content.get('title', sample_node_id)}**")
+                                    st.write(sample_node.content.get('description', ''))
+
+    # ========================================================================
+    # TAB 8: LIFE TIMELINE
+    # ========================================================================
+    with tabs[7]:
+        st.header("📅 Life Timeline Editor")
+
+        if st.session_state.universe is None:
+            st.warning("⚠️ No universe loaded.")
+        else:
+            universe = st.session_state.universe
+
+            st.markdown("""
+            Create and edit life events for personal timelines. Perfect for exploring alternative life paths!
+            """)
+
+            st.divider()
+
+            # Event Creator
+            st.subheader("✨ Create New Life Event")
+
+            with st.form("create_event"):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    event_id = st.text_input(
+                        "Event ID",
+                        placeholder="college_2020",
+                        help="Unique identifier (e.g., college_2020, wedding_2025)"
+                    )
+
+                    title = st.text_input(
+                        "Event Title",
+                        placeholder="Graduated from University",
+                        help="Short title for the event"
+                    )
+
+                    description = st.text_area(
+                        "Description",
+                        placeholder="Completed BS in Computer Science with honors...",
+                        help="Detailed description of what happened"
+                    )
+
+                    domain = st.selectbox(
+                        "Life Domain",
+                        get_life_domains(),
+                        help="Category of life event"
+                    )
+
+                with col2:
+                    year = st.number_input(
+                        "Year",
+                        min_value=1900,
+                        max_value=2100,
+                        value=2020,
+                        help="Year the event occurred"
+                    )
+
+                    age = st.number_input(
+                        "Age",
+                        min_value=0,
+                        max_value=120,
+                        value=22,
+                        help="Your age when this happened"
+                    )
+
+                    importance = st.slider(
+                        "Importance",
+                        0.0, 1.0, 0.8, 0.1,
+                        help="How significant was this event? 0=minor, 1=life-defining"
+                    )
+
+                    happiness = st.slider(
+                        "Happiness",
+                        0.0, 1.0, 0.7, 0.1,
+                        help="How happy/satisfied were you? 0=unhappy, 1=very happy"
+                    )
+
+                    # Parent selection
+                    parent_options = ["None"] + list(universe.nodes.keys())
+                    parent = st.selectbox(
+                        "Parent Event",
+                        parent_options,
+                        help="Which event led to this one?"
+                    )
+
+                submitted = st.form_submit_button("Create Event")
+
+                if submitted:
+                    if not event_id or not title:
+                        st.error("Event ID and Title are required")
+                    elif event_id in universe.nodes:
+                        st.error(f"Event ID '{event_id}' already exists")
+                    else:
+                        # Create node
+                        parent_ids = [] if parent == "None" else [parent]
+                        new_node = create_life_event_node(
+                            event_id,
+                            title,
+                            description,
+                            year,
+                            age,
+                            importance,
+                            happiness,
+                            domain,
+                            universe.dimension,
+                            parent_ids
+                        )
+
+                        # Add to universe
+                        universe.nodes[event_id] = new_node
+
+                        # Update parent's children
+                        if parent_ids:
+                            parent_node = universe.nodes[parent_ids[0]]
+                            parent_node.children_ids.append(event_id)
+
+                        st.success(f"✅ Created event: {title}")
+                        st.rerun()
+
+            st.divider()
+
+            # Event Editor
+            st.subheader("✏️ Edit Existing Event")
+
+            if universe.nodes:
+                edit_node_id = st.selectbox(
+                    "Select Event to Edit",
+                    list(universe.nodes.keys()),
+                    format_func=lambda x: f"{x}: {universe.nodes[x].content.get('title', 'Untitled')}"
+                )
+
+                if edit_node_id:
+                    edit_node = universe.nodes[edit_node_id]
+
+                    with st.form("edit_event"):
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            new_title = st.text_input(
+                                "Title",
+                                value=edit_node.content.get('title', '')
+                            )
+
+                            new_description = st.text_area(
+                                "Description",
+                                value=edit_node.content.get('description', ''),
+                                height=150
+                            )
+
+                        with col2:
+                            props = edit_node.content.get('properties', {})
+
+                            new_importance = st.slider(
+                                "Importance",
+                                0.0, 1.0,
+                                float(props.get('importance', 0.5)),
+                                0.1
+                            )
+
+                            new_happiness = st.slider(
+                                "Happiness",
+                                0.0, 1.0,
+                                float(props.get('happiness', 0.5)),
+                                0.1
+                            )
+
+                            new_domain = st.selectbox(
+                                "Domain",
+                                get_life_domains(),
+                                index=get_life_domains().index(props.get('domain', 'life_milestone'))
+                                if props.get('domain') in get_life_domains() else 0
+                            )
+
+                        update_submitted = st.form_submit_button("Update Event")
+
+                        if update_submitted:
+                            # Update node
+                            edit_node.content['title'] = new_title
+                            edit_node.content['description'] = new_description
+                            edit_node.content['properties']['importance'] = new_importance
+                            edit_node.content['properties']['happiness'] = new_happiness
+                            edit_node.content['properties']['domain'] = new_domain
+
+                            st.success(f"✅ Updated: {new_title}")
+                            st.rerun()
+
+                    # Delete button
+                    if st.button(f"🗑️ Delete Event: {edit_node_id}", type="secondary"):
+                        # Remove from universe
+                        del universe.nodes[edit_node_id]
+
+                        # Remove from parent's children
+                        for node in universe.nodes.values():
+                            if edit_node_id in node.children_ids:
+                                node.children_ids.remove(edit_node_id)
+
+                        st.success(f"✅ Deleted: {edit_node_id}")
+                        st.rerun()
+
+    # ========================================================================
+    # TAB 9: MATHEMATICS
+    # ========================================================================
+    with tabs[8]:
         st.header("Mathematical Analysis")
         
         if st.session_state.universe is None:
