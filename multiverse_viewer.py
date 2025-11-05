@@ -658,7 +658,7 @@ def create_2d_projection(universe: RKHSUniverse,
 # ============================================================================
 
 def main():
-    st.set_page_config(page_title="RKHS Multiverse Viewer", layout="wide")
+    st.set_page_config(page_title="Multiverse Viewer", layout="wide")
     
     st.title("🌌 Your Multiverse Viewer")
     st.markdown("**explore your personal AI multiverses using **Reproducing Kernel Hilbert Space** (RKHS) formalizations")
@@ -1246,47 +1246,50 @@ def main():
             if nodes_to_viz is not None and len(nodes_to_viz) == 0:
                 st.warning("⚠️ No nodes in selected set")
             else:
-                with st.spinner("Generating visualization..."):
-                    if viz_type == "3D Network":
-                        col_layout, col_color = st.columns(2)
+                # Render visualization first
+                if viz_type == "3D Network":
+                    col_layout, col_color = st.columns(2)
 
-                        with col_layout:
-                            layout = st.radio(
-                                "Layout",
-                                ["position", "force-directed"],
-                                horizontal=True,
-                                help="**position**: Use the actual RKHS coordinates of each node. Shows true geometric relationships in the kernel space.\n\n"
-                                     "**force-directed**: Apply physics simulation to spread nodes apart. Better for seeing network structure when nodes are clustered."
-                            )
+                    with col_layout:
+                        layout = st.radio(
+                            "Layout",
+                            ["position", "force-directed"],
+                            horizontal=True,
+                            help="**position**: Use the actual RKHS coordinates of each node. Shows true geometric relationships in the kernel space.\n\n"
+                                 "**force-directed**: Apply physics simulation to spread nodes apart. Better for seeing network structure when nodes are clustered."
+                        )
 
-                        with col_color:
-                            color_by = st.radio(
-                                "Color By",
-                                ["energy", "domain", "happiness", "importance"],
-                                horizontal=True,
-                                help="**energy**: Default property value.\n\n"
-                                     "**domain**: Life domain (education, career, relationships, etc.). Great for life timelines!\n\n"
-                                     "**happiness**: Emotional state/satisfaction level.\n\n"
-                                     "**importance**: Significance of the event/node."
-                            )
+                    with col_color:
+                        color_by = st.radio(
+                            "Color By",
+                            ["energy", "domain", "happiness", "importance"],
+                            horizontal=True,
+                            help="**energy**: Default property value.\n\n"
+                                 "**domain**: Life domain (education, career, relationships, etc.). Great for life timelines!\n\n"
+                                 "**happiness**: Emotional state/satisfaction level.\n\n"
+                                 "**importance**: Significance of the event/node."
+                        )
 
+                    with st.spinner("Generating visualization..."):
                         fig = create_3d_network_viz(universe, nodes_to_viz, layout, color_by)
-                        st.plotly_chart(fig, use_container_width=True)
-                    
-                    elif viz_type == "2D Projection":
+                    st.plotly_chart(fig, width='stretch')
+
+                elif viz_type == "2D Projection":
+                    with st.spinner("Generating visualization..."):
                         fig = create_2d_projection(universe, nodes_to_viz)
-                        st.plotly_chart(fig, use_container_width=True)
-                    
-                    elif viz_type == "Kernel Matrix":
-                        # Show kernel similarity matrix
-                        if nodes_to_viz:
-                            node_list = list(nodes_to_viz)[:100]  # Limit for performance
-                        else:
-                            node_list = list(universe.nodes.keys())[:100]
-                        
+                    st.plotly_chart(fig, width='stretch')
+
+                elif viz_type == "Kernel Matrix":
+                    # Show kernel similarity matrix
+                    if nodes_to_viz:
+                        node_list = list(nodes_to_viz)[:100]  # Limit for performance
+                    else:
+                        node_list = list(universe.nodes.keys())[:100]
+
+                    with st.spinner("Computing kernel matrix..."):
                         n = len(node_list)
                         kernel_matrix = np.zeros((n, n))
-                        
+
                         for i, nid1 in enumerate(node_list):
                             for j, nid2 in enumerate(node_list):
                                 node1 = universe.nodes[nid1]
@@ -1297,22 +1300,22 @@ def main():
                                     universe.kernel_type,
                                     universe.kernel_params.get('gamma', 1.0)
                                 )
-                        
+
                         fig = go.Figure(data=go.Heatmap(
                             z=kernel_matrix,
                             x=node_list,
                             y=node_list,
                             colorscale='Viridis'
                         ))
-                        
+
                         fig.update_layout(
                             title="Kernel Similarity Matrix",
                             height=600,
                             xaxis_title="Node ID",
                             yaxis_title="Node ID"
                         )
-                        
-                        st.plotly_chart(fig, use_container_width=True)
+
+                    st.plotly_chart(fig, width='stretch')
 
                 # Summary section below the graph
                 st.divider()
