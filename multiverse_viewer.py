@@ -1246,7 +1246,75 @@ def main():
             if nodes_to_viz is not None and len(nodes_to_viz) == 0:
                 st.warning("⚠️ No nodes in selected set")
             else:
-                # Generate summary of visible nodes
+                with st.spinner("Generating visualization..."):
+                    if viz_type == "3D Network":
+                        col_layout, col_color = st.columns(2)
+
+                        with col_layout:
+                            layout = st.radio(
+                                "Layout",
+                                ["position", "force-directed"],
+                                horizontal=True,
+                                help="**position**: Use the actual RKHS coordinates of each node. Shows true geometric relationships in the kernel space.\n\n"
+                                     "**force-directed**: Apply physics simulation to spread nodes apart. Better for seeing network structure when nodes are clustered."
+                            )
+
+                        with col_color:
+                            color_by = st.radio(
+                                "Color By",
+                                ["energy", "domain", "happiness", "importance"],
+                                horizontal=True,
+                                help="**energy**: Default property value.\n\n"
+                                     "**domain**: Life domain (education, career, relationships, etc.). Great for life timelines!\n\n"
+                                     "**happiness**: Emotional state/satisfaction level.\n\n"
+                                     "**importance**: Significance of the event/node."
+                            )
+
+                        fig = create_3d_network_viz(universe, nodes_to_viz, layout, color_by)
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    elif viz_type == "2D Projection":
+                        fig = create_2d_projection(universe, nodes_to_viz)
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    elif viz_type == "Kernel Matrix":
+                        # Show kernel similarity matrix
+                        if nodes_to_viz:
+                            node_list = list(nodes_to_viz)[:100]  # Limit for performance
+                        else:
+                            node_list = list(universe.nodes.keys())[:100]
+                        
+                        n = len(node_list)
+                        kernel_matrix = np.zeros((n, n))
+                        
+                        for i, nid1 in enumerate(node_list):
+                            for j, nid2 in enumerate(node_list):
+                                node1 = universe.nodes[nid1]
+                                node2 = universe.nodes[nid2]
+                                kernel_matrix[i, j] = compute_kernel_similarity(
+                                    node1.kernel_features,
+                                    node2.kernel_features,
+                                    universe.kernel_type,
+                                    universe.kernel_params.get('gamma', 1.0)
+                                )
+                        
+                        fig = go.Figure(data=go.Heatmap(
+                            z=kernel_matrix,
+                            x=node_list,
+                            y=node_list,
+                            colorscale='Viridis'
+                        ))
+                        
+                        fig.update_layout(
+                            title="Kernel Similarity Matrix",
+                            height=600,
+                            xaxis_title="Node ID",
+                            yaxis_title="Node ID"
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+
+                # Summary section below the graph
                 st.divider()
 
                 # Determine which nodes are being shown
@@ -1327,11 +1395,17 @@ def main():
                                 delta=f"±{np.std(values):.3f}"
                             )
 
-                # Show sample of titles
-                if titles:
-                    with st.expander(f"📚 Sample Titles ({min(10, len(titles))} of {len(titles)})", expanded=False):
-                        for title in titles[:10]:
-                            st.markdown(f"- {title}")
+                # Show sample of items (titles and descriptions)
+                if titles or descriptions:
+                    with st.expander(f"📚 Sample Items ({min(10, len(titles))} of {len(titles)})", expanded=False):
+                        for i, title in enumerate(titles[:10]):
+                            st.markdown(f"**{i+1}. {title}**")
+                            if i < len(descriptions) and descriptions[i]:
+                                # Show first 100 chars of description
+                                desc_preview = descriptions[i][:100]
+                                if len(descriptions[i]) > 100:
+                                    desc_preview += "..."
+                                st.caption(desc_preview)
 
                 st.divider()
 
@@ -1356,74 +1430,8 @@ def main():
                     *Note: If a node doesn't have an energy property, it defaults to 0.5 (neutral).*
                     """)
 
-                with st.spinner("Generating visualization..."):
-                    if viz_type == "3D Network":
-                        col_layout, col_color = st.columns(2)
+                st.divider()
 
-                        with col_layout:
-                            layout = st.radio(
-                                "Layout",
-                                ["position", "force-directed"],
-                                horizontal=True,
-                                help="**position**: Use the actual RKHS coordinates of each node. Shows true geometric relationships in the kernel space.\n\n"
-                                     "**force-directed**: Apply physics simulation to spread nodes apart. Better for seeing network structure when nodes are clustered."
-                            )
-
-                        with col_color:
-                            color_by = st.radio(
-                                "Color By",
-                                ["energy", "domain", "happiness", "importance"],
-                                horizontal=True,
-                                help="**energy**: Default property value.\n\n"
-                                     "**domain**: Life domain (education, career, relationships, etc.). Great for life timelines!\n\n"
-                                     "**happiness**: Emotional state/satisfaction level.\n\n"
-                                     "**importance**: Significance of the event/node."
-                            )
-
-                        fig = create_3d_network_viz(universe, nodes_to_viz, layout, color_by)
-                        st.plotly_chart(fig, use_container_width=True)
-                    
-                    elif viz_type == "2D Projection":
-                        fig = create_2d_projection(universe, nodes_to_viz)
-                        st.plotly_chart(fig, use_container_width=True)
-                    
-                    elif viz_type == "Kernel Matrix":
-                        # Show kernel similarity matrix
-                        if nodes_to_viz:
-                            node_list = list(nodes_to_viz)[:100]  # Limit for performance
-                        else:
-                            node_list = list(universe.nodes.keys())[:100]
-                        
-                        n = len(node_list)
-                        kernel_matrix = np.zeros((n, n))
-                        
-                        for i, nid1 in enumerate(node_list):
-                            for j, nid2 in enumerate(node_list):
-                                node1 = universe.nodes[nid1]
-                                node2 = universe.nodes[nid2]
-                                kernel_matrix[i, j] = compute_kernel_similarity(
-                                    node1.kernel_features,
-                                    node2.kernel_features,
-                                    universe.kernel_type,
-                                    universe.kernel_params.get('gamma', 1.0)
-                                )
-                        
-                        fig = go.Figure(data=go.Heatmap(
-                            z=kernel_matrix,
-                            x=node_list,
-                            y=node_list,
-                            colorscale='Viridis'
-                        ))
-                        
-                        fig.update_layout(
-                            title="Kernel Similarity Matrix",
-                            height=600,
-                            xaxis_title="Node ID",
-                            yaxis_title="Node ID"
-                        )
-                        
-                        st.plotly_chart(fig, use_container_width=True)
-                
                 # Export visualization data
                 if st.button("💾 Export Visualization Data"):
                     export_data = {
