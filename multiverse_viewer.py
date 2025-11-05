@@ -658,11 +658,11 @@ def create_2d_projection(universe: RKHSUniverse,
 # ============================================================================
 
 def main():
-    st.set_page_config(page_title="Multiverse Viewer", layout="wide")
-    
-    st.title("🌌 Your Multiverse Viewer")
-    st.markdown("**explore your personal AI multiverses using **Reproducing Kernel Hilbert Space** (RKHS) formalizations")
-    
+    st.set_page_config(page_title="Your Multiverse Explorer", layout="wide")
+
+    st.title("🌌 Your Multiverse Explorer")
+    st.markdown("**Explore your personal AI multiverses using Reproducing Kernel Hilbert Space (RKHS) formalizations**")
+
     # Initialize session state
     if 'universe' not in st.session_state:
         st.session_state.universe = None
@@ -674,520 +674,34 @@ def main():
         st.session_state.filtered_nodes = None
     if 'auto_filter_active' not in st.session_state:
         st.session_state.auto_filter_active = False
-    
-    # Create tabs
+
+    # Auto-load example life timeline on first run
+    if 'initial_load_done' not in st.session_state:
+        example_path = Path(__file__).parent.parent / "example_life_timeline.json"
+        if example_path.exists():
+            universe = load_rkhs_universe(str(example_path))
+            if universe:
+                st.session_state.universe = universe
+                apply_auto_filter_if_needed(universe)
+        st.session_state.initial_load_done = True
+
+    # Create tabs - Visualize is first (home page)
     tabs = st.tabs([
-        "🌍 Open",
-        "✨ Materialize",
+        "📊 Visualize",
         "🔍 Browse",
         "🔱 Fork",
         "🎯 Filter",
-        "📊 Visualize",
         "📝 Text/LLM",
         "📅 Life Timeline",
+        "🌟 Create",
+        "📂 Load",
         "🔢 Mathematics"
     ])
     
     # ========================================================================
-    # TAB 1: OPEN
+    # TAB 0: VISUALIZE (HOME PAGE)
     # ========================================================================
     with tabs[0]:
-        st.header("Open Universe")
-
-        col1, col2 = st.columns([2, 1])
-
-        with col1:
-            st.subheader("Option 1: Upload File (< 200 MB)")
-            uploaded_file = st.file_uploader(
-                "Upload RKHS Universe (JSON)",
-                type=['json'],
-                help="Upload a previously saved RKHS multiverse from your computer. "
-                     "The file must be in JSON format with .json extension and under 200 MB. "
-                     "This will load all nodes, edges, and metadata from your saved universe."
-            )
-
-            if uploaded_file:
-                temp_path = f"/tmp/{uploaded_file.name}"
-                with open(temp_path, 'wb') as f:
-                    f.write(uploaded_file.getbuffer())
-
-                universe = load_rkhs_universe(temp_path)
-                if universe:
-                    st.session_state.universe = universe
-                    apply_auto_filter_if_needed(universe)
-                    st.success(f"✅ Loaded: {universe.name}")
-                    st.json({
-                        "nodes": len(universe.nodes),
-                        "edges": len(universe.edges),
-                        "dimension": universe.dimension,
-                        "kernel_type": universe.kernel_type
-                    })
-
-            # Option 2: Pre-loaded universes
-            st.divider()
-
-            st.subheader("Option 2: Open Pre-loaded Universe")
-
-            # Dictionary of pre-configured universe files
-            PRELOADED_UNIVERSES = {
-                "Codexspace v1": "/Users/fred/xcu_my_apps/hilberts/codexspace_v1.rkhs.json",
-                "Codexspace Sample": "/Users/fred/xcu_my_apps/hilberts/multiverse_viewer/codexspace_sample.rkhs.json",
-            }
-
-            selected_universe = st.selectbox(
-                "Select Universe",
-                options=list(PRELOADED_UNIVERSES.keys()),
-                index=0,  # Default to first option (Codexspace v1)
-                help="Choose from pre-configured universe files that are already stored on the system. "
-                     "**Codexspace v1**: Full 28K+ books universe from the PG19 dataset.\n\n"
-                     "**Codexspace Sample**: Smaller sample for quick testing and exploration."
-            )
-
-            if st.button("📂 Load Selected Universe"):
-                file_path = PRELOADED_UNIVERSES[selected_universe]
-                if Path(file_path).exists():
-                    with st.spinner(f"Loading {selected_universe}..."):
-                        universe = load_rkhs_universe(file_path)
-                        if universe:
-                            st.session_state.universe = universe
-                            apply_auto_filter_if_needed(universe)
-                            st.success(f"✅ Loaded: {universe.name}")
-                            st.json({
-                                "nodes": len(universe.nodes),
-                                "edges": len(universe.edges),
-                                "dimension": universe.dimension,
-                                "kernel_type": universe.kernel_type
-                            })
-                else:
-                    st.error(f"❌ File not found: {file_path}")
-        
-        with col2:
-            st.subheader("Quick Start")
-
-            n_sample_nodes = st.number_input(
-                "Sample universe size",
-                min_value=10,
-                max_value=30000,
-                value=100,
-                step=10,
-                help="Number of nodes to generate in the sample universe. "
-                     "Start with 100 for quick testing. Larger values (1000+) are useful for "
-                     "testing performance with bigger datasets. Maximum is 30,000 nodes."
-            )
-            
-            if st.button("🎲 Create Sample Universe"):
-                with st.spinner(f"Generating {n_sample_nodes} nodes..."):
-                    universe = create_sample_universe(n_sample_nodes)
-                    st.session_state.universe = universe
-                    apply_auto_filter_if_needed(universe)
-                    st.success(f"✅ Created sample universe with {n_sample_nodes} nodes")
-    
-    # ========================================================================
-    # TAB 2: MATERIALIZE
-    # ========================================================================
-    with tabs[1]:
-        st.header("Materialize New Universe")
-        
-        if st.session_state.universe is not None:
-            st.info("Universe already loaded. Create new or modify existing?")
-        
-        col1, col2 = st.columns(2)
-
-        with col1:
-            name = st.text_input(
-                "Universe Name",
-                value="New Universe",
-                help="Give your universe a descriptive name. This will appear in visualizations and file exports."
-            )
-            description = st.text_area(
-                "Description",
-                value="A personal AI multiverse",
-                help="Describe what this universe represents. This helps document the purpose and contents of your multiverse."
-            )
-            dimension = st.number_input(
-                "RKHS Dimension",
-                min_value=2,
-                max_value=1000,
-                value=8,
-                help="Dimensionality of the Reproducing Kernel Hilbert Space. Higher dimensions allow more complex "
-                     "relationships but require more memory. Common values: 8 (simple), 64-128 (moderate), 768 (like MPNet embeddings)."
-            )
-
-        with col2:
-            kernel_type = st.selectbox(
-                "Kernel Type",
-                ["rbf", "linear", "polynomial", "cosine"],
-                help="**RBF (Radial Basis Function)**: Gaussian kernel, good for smooth similarity decay. Most common choice.\n\n"
-                     "**Linear**: Simple dot product, computationally efficient.\n\n"
-                     "**Polynomial**: Polynomial similarity, captures complex interactions.\n\n"
-                     "**Cosine**: Angle-based similarity, ignores magnitude."
-            )
-
-            if kernel_type == "rbf":
-                gamma = st.slider(
-                    "Gamma (RBF parameter)",
-                    0.1, 10.0, 1.0,
-                    help="Controls the width of the RBF kernel. Lower gamma (0.1-0.5) = broad influence, nodes remain similar over larger distances. "
-                         "Higher gamma (2.0-10.0) = narrow influence, only very close nodes are considered similar. Default 1.0 works well for most cases."
-                )
-                kernel_params = {"gamma": gamma}
-            else:
-                kernel_params = {}
-
-            n_nodes = st.number_input(
-                "Initial Nodes",
-                min_value=1,
-                max_value=50000,
-                value=100,
-                help="Number of nodes to create initially. Start with 100 for testing. "
-                     "You can add more nodes later using the Fork tab. Maximum 50,000 nodes."
-            )
-        
-        if st.button("🌟 Materialize Universe"):
-            with st.spinner("Materializing universe..."):
-                universe = RKHSUniverse(
-                    name=name,
-                    description=description,
-                    dimension=dimension,
-                    kernel_type=kernel_type,
-                    kernel_params=kernel_params,
-                    nodes={},
-                    edges=[],
-                    metadata={"created": datetime.now().isoformat()}
-                )
-                
-                # Generate initial nodes
-                for i in range(n_nodes):
-                    position = [np.random.randn() for _ in range(min(dimension, 3))]
-                    kernel_features = [np.random.randn() for _ in range(dimension)]
-                    
-                    node = RKHSNode(
-                        id=f"node_{i:06d}",
-                        position=position,
-                        content={"title": f"Node {i}", "description": ""},
-                        metadata={},
-                        kernel_features=kernel_features,
-                        timestamp=datetime.now().isoformat(),
-                        parent_ids=[],
-                        children_ids=[]
-                    )
-                    universe.nodes[node.id] = node
-                
-                st.session_state.universe = universe
-                st.success(f"✅ Materialized universe with {n_nodes} nodes")
-    
-    # ========================================================================
-    # TAB 3: BROWSE
-    # ========================================================================
-    with tabs[2]:
-        st.header("Browse Universe")
-        
-        if st.session_state.universe is None:
-            st.warning("⚠️ No universe loaded. Please open or create a universe first.")
-        else:
-            universe = st.session_state.universe
-            
-            # Summary statistics
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Nodes", len(universe.nodes))
-            col2.metric("Edges", len(universe.edges))
-            col3.metric("Dimension", universe.dimension)
-            col4.metric("Kernel", universe.kernel_type)
-            
-            st.divider()
-
-            # Node browser
-            search = st.text_input(
-                "🔍 Search nodes",
-                "",
-                help="Search for nodes by title or ID. Enter any text to filter the node list. "
-                     "Search is case-insensitive and matches partial strings."
-            )
-
-            nodes_list = []
-            for nid, node in universe.nodes.items():
-                title = node.content.get('title', nid)
-                if search.lower() in title.lower() or search.lower() in nid.lower():
-                    nodes_list.append({
-                        'ID': nid,
-                        'Title': title,
-                        'Parents': len(node.parent_ids),
-                        'Children': len(node.children_ids),
-                        'Timestamp': node.timestamp
-                    })
-            
-            if nodes_list:
-                df = pd.DataFrame(nodes_list)
-                st.dataframe(df, use_container_width=True, height=400)
-
-                # Node detail view
-                selected_id = st.selectbox(
-                    "Select node for details",
-                    df['ID'].tolist(),
-                    help="Choose a node from the filtered list to view its complete details, "
-                         "including content, metadata, position, and relationships."
-                )
-
-                if selected_id:
-                    node = universe.nodes[selected_id]
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.subheader("Content")
-                        st.json(node.content)
-                    
-                    with col2:
-                        st.subheader("Metadata")
-                        st.write(f"**Position:** {node.position[:3]}")
-                        st.write(f"**Parents:** {len(node.parent_ids)}")
-                        st.write(f"**Children:** {len(node.children_ids)}")
-                        st.json(node.metadata)
-                    
-                    # Mark as traversed
-                    if st.button(f"📍 Mark as Traversed"):
-                        st.session_state.traversed_nodes.add(selected_id)
-                        st.success(f"Added {selected_id} to traversed nodes")
-    
-    # ========================================================================
-    # TAB 4: FORK
-    # ========================================================================
-    with tabs[3]:
-        st.header("Fork & Branch")
-        
-        if st.session_state.universe is None:
-            st.warning("⚠️ No universe loaded.")
-        else:
-            universe = st.session_state.universe
-            
-            st.subheader("Create Fork from Node")
-
-            node_ids = list(universe.nodes.keys())
-            source_node = st.selectbox(
-                "Source Node",
-                node_ids,
-                help="Select the parent node from which to create fork(s). "
-                     "The new node(s) will be created near this node in RKHS space."
-            )
-
-            if source_node:
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    fork_title = st.text_input(
-                        "Fork Title",
-                        value=f"Fork of {source_node}",
-                        help="Title for the forked node(s). If creating multiple children, "
-                             "each will be numbered (e.g., 'Fork of node_001 0', 'Fork of node_001 1', etc.)"
-                    )
-                    fork_desc = st.text_area(
-                        "Description",
-                        value="Branching timeline",
-                        help="Description for the forked node(s). This helps document why and how the fork was created."
-                    )
-
-                with col2:
-                    perturbation = st.slider(
-                        "Position Perturbation",
-                        0.0, 1.0, 0.1,
-                        help="How far to move the forked node from the source in RKHS space. "
-                             "0.0 = exact copy at same position, 0.1 = small variation (recommended), "
-                             "0.5 = moderate variation, 1.0 = large variation. Higher values create more divergent forks."
-                    )
-                    n_children = st.number_input(
-                        "Children to Create",
-                        1, 100, 1,
-                        help="Number of child nodes to fork from the source. "
-                             "1 = single fork, 5+ = create a cluster of variations. "
-                             "Each child will have slightly different random perturbations."
-                    )
-                
-                if st.button("🔱 Create Fork"):
-                    source = universe.nodes[source_node]
-                    
-                    for i in range(n_children):
-                        new_id = f"fork_{source_node}_{i}_{datetime.now().timestamp()}"
-                        
-                        # Perturb position
-                        new_position = [
-                            p + np.random.randn() * perturbation 
-                            for p in source.position
-                        ]
-                        
-                        new_features = [
-                            f + np.random.randn() * perturbation 
-                            for f in source.kernel_features
-                        ]
-                        
-                        new_node = RKHSNode(
-                            id=new_id,
-                            position=new_position,
-                            content={
-                                "title": f"{fork_title} {i}",
-                                "description": fork_desc,
-                                "forked_from": source_node
-                            },
-                            metadata={"fork_time": datetime.now().isoformat()},
-                            kernel_features=new_features,
-                            timestamp=datetime.now().isoformat(),
-                            parent_ids=[source_node],
-                            children_ids=[]
-                        )
-                        
-                        universe.nodes[new_id] = new_node
-                        source.children_ids.append(new_id)
-                        
-                        # Create edge
-                        sim = compute_kernel_similarity(
-                            source.kernel_features,
-                            new_features,
-                            universe.kernel_type,
-                            universe.kernel_params.get('gamma', 1.0)
-                        )
-                        
-                        edge = RKHSEdge(
-                            source_id=source_node,
-                            target_id=new_id,
-                            weight=1.0,
-                            kernel_similarity=sim,
-                            transition_type="fork",
-                            metadata={}
-                        )
-                        universe.edges.append(edge)
-                        
-                        st.session_state.forked_nodes.add(new_id)
-                    
-                    st.success(f"✅ Created {n_children} fork(s) from {source_node}")
-            
-            # Show forked nodes
-            if st.session_state.forked_nodes:
-                st.subheader("Forked Nodes")
-                st.write(f"Total forked: {len(st.session_state.forked_nodes)}")
-                st.write(list(st.session_state.forked_nodes)[:20])
-    
-    # ========================================================================
-    # TAB 5: FILTER
-    # ========================================================================
-    with tabs[4]:
-        st.header("Filter Nodes")
-
-        if st.session_state.universe is None:
-            st.warning("⚠️ No universe loaded.")
-        else:
-            universe = st.session_state.universe
-
-            # Show auto-filter status
-            if st.session_state.auto_filter_active:
-                col_info, col_clear = st.columns([3, 1])
-                with col_info:
-                    st.info(
-                        f"ℹ️ **Auto-filter active**: Showing {len(st.session_state.filtered_nodes)} of "
-                        f"{len(universe.nodes):,} nodes for performance."
-                    )
-                with col_clear:
-                    if st.button("Clear Auto-filter"):
-                        st.session_state.filtered_nodes = None
-                        st.session_state.auto_filter_active = False
-                        st.rerun()
-                st.divider()
-
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                filter_type = st.selectbox(
-                    "Filter Type",
-                    ["All Nodes", "Traversed Only", "Forked Only", "By Property", "By Kernel Distance"],
-                    help="**All Nodes**: Show every node (no filtering).\n\n"
-                         "**Traversed Only**: Show nodes you marked as traversed in the Browse tab.\n\n"
-                         "**Forked Only**: Show nodes you created using the Fork tab.\n\n"
-                         "**By Property**: Filter by a numeric property value (e.g., energy between 0.3-0.7).\n\n"
-                         "**By Kernel Distance**: Show nodes within a certain distance from a reference node in RKHS space."
-                )
-
-            with col2:
-                if filter_type == "By Property":
-                    prop_key = st.text_input(
-                        "Property Key",
-                        "energy",
-                        help="Name of the property to filter by (e.g., 'energy', 'entropy'). "
-                             "Must be a numeric property that exists in node.content.properties."
-                    )
-                    prop_min = st.number_input(
-                        "Min Value",
-                        value=0.0,
-                        help="Minimum value for the property (inclusive). Nodes with property values below this will be excluded."
-                    )
-                    prop_max = st.number_input(
-                        "Max Value",
-                        value=1.0,
-                        help="Maximum value for the property (inclusive). Nodes with property values above this will be excluded."
-                    )
-
-                elif filter_type == "By Kernel Distance":
-                    ref_node = st.selectbox(
-                        "Reference Node",
-                        list(universe.nodes.keys()),
-                        help="Choose a node to use as the center point. The filter will show nodes within "
-                             "the specified distance from this reference node in RKHS space."
-                    )
-                    max_distance = st.slider(
-                        "Max Distance",
-                        0.0, 5.0, 1.0,
-                        help="Maximum Euclidean distance from the reference node in RKHS space. "
-                             "Smaller values (0.5-1.0) = nearby nodes only. Larger values (2.0-5.0) = broader neighborhood. "
-                             "Distance is calculated as ||node1.features - node2.features||."
-                    )
-
-            with col3:
-                limit = st.number_input(
-                    "Max Results",
-                    10,
-                    len(universe.nodes),
-                    min(100, len(universe.nodes)),
-                    help="Maximum number of nodes to include in the filter results. "
-                         "Helps keep visualizations responsive by limiting the node count. "
-                         "First N matching nodes will be included."
-                )
-            
-            if st.button("🎯 Apply Filter"):
-                filtered = set()
-                
-                if filter_type == "All Nodes":
-                    filtered = set(universe.nodes.keys())
-                
-                elif filter_type == "Traversed Only":
-                    filtered = st.session_state.traversed_nodes
-                
-                elif filter_type == "Forked Only":
-                    filtered = st.session_state.forked_nodes
-                
-                elif filter_type == "By Property":
-                    for nid, node in universe.nodes.items():
-                        if 'properties' in node.content:
-                            val = node.content['properties'].get(prop_key)
-                            if val is not None and prop_min <= val <= prop_max:
-                                filtered.add(nid)
-                
-                elif filter_type == "By Kernel Distance":
-                    ref = universe.nodes[ref_node]
-                    for nid, node in universe.nodes.items():
-                        dist = np.linalg.norm(
-                            np.array(ref.kernel_features) - np.array(node.kernel_features)
-                        )
-                        if dist <= max_distance:
-                            filtered.add(nid)
-                
-                filtered = list(filtered)[:limit]
-                st.session_state.filtered_nodes = set(filtered)
-                st.session_state.auto_filter_active = False  # User applied manual filter
-
-                st.success(f"✅ Filtered to {len(filtered)} nodes")
-                st.write(filtered[:50])
-    
-    # ========================================================================
-    # TAB 6: VISUALIZE
-    # ========================================================================
-    with tabs[5]:
         st.header("Interactive Visualization")
 
         if st.session_state.universe is None:
@@ -1229,7 +743,7 @@ def main():
                         value=min(200, len(universe.nodes)),
                         help="Number of random nodes to display. Smaller values load faster."
                     )
-            
+
             # Determine which nodes to show
             if node_set == "All Nodes":
                 nodes_to_viz = None  # Show all
@@ -1242,7 +756,7 @@ def main():
             elif node_set == "Sample":
                 all_ids = list(universe.nodes.keys())
                 nodes_to_viz = set(np.random.choice(all_ids, size=min(sample_size, len(all_ids)), replace=False))
-            
+
             if nodes_to_viz is not None and len(nodes_to_viz) == 0:
                 st.warning("⚠️ No nodes in selected set")
             else:
@@ -1449,9 +963,317 @@ def main():
                     )
     
     # ========================================================================
-    # TAB 7: TEXT/LLM OPERATIONS
+    # TAB 1: BROWSE
     # ========================================================================
-    with tabs[6]:
+    with tabs[1]:
+        st.header("Browse Universe")
+
+        if st.session_state.universe is None:
+            st.warning("⚠️ No universe loaded. Please open or create a universe first.")
+        else:
+            universe = st.session_state.universe
+
+            # Summary statistics
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Nodes", len(universe.nodes))
+            col2.metric("Edges", len(universe.edges))
+            col3.metric("Dimension", universe.dimension)
+            col4.metric("Kernel", universe.kernel_type)
+
+            st.divider()
+
+            # Node browser
+            search = st.text_input(
+                "🔍 Search nodes",
+                "",
+                help="Search for nodes by title or ID. Enter any text to filter the node list. "
+                     "Search is case-insensitive and matches partial strings."
+            )
+
+            nodes_list = []
+            for nid, node in universe.nodes.items():
+                title = node.content.get('title', nid)
+                if search.lower() in title.lower() or search.lower() in nid.lower():
+                    nodes_list.append({
+                        'ID': nid,
+                        'Title': title,
+                        'Parents': len(node.parent_ids),
+                        'Children': len(node.children_ids),
+                        'Timestamp': node.timestamp
+                    })
+
+            if nodes_list:
+                df = pd.DataFrame(nodes_list)
+                st.dataframe(df, use_container_width=True, height=400)
+
+                # Node detail view
+                selected_id = st.selectbox(
+                    "Select node for details",
+                    df['ID'].tolist(),
+                    help="Choose a node from the filtered list to view its complete details, "
+                         "including content, metadata, position, and relationships."
+                )
+
+                if selected_id:
+                    node = universe.nodes[selected_id]
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.subheader("Content")
+                        st.json(node.content)
+
+                    with col2:
+                        st.subheader("Metadata")
+                        st.write(f"**Position:** {node.position[:3]}")
+                        st.write(f"**Parents:** {len(node.parent_ids)}")
+                        st.write(f"**Children:** {len(node.children_ids)}")
+                        st.json(node.metadata)
+
+                    # Mark as traversed
+                    if st.button(f"📍 Mark as Traversed"):
+                        st.session_state.traversed_nodes.add(selected_id)
+                        st.success(f"Added {selected_id} to traversed nodes")
+    
+    # ========================================================================
+    # TAB 2: FORK
+    # ========================================================================
+    with tabs[2]:
+        st.header("Fork & Branch")
+
+        if st.session_state.universe is None:
+            st.warning("⚠️ No universe loaded.")
+        else:
+            universe = st.session_state.universe
+
+            st.subheader("Create Fork from Node")
+
+            node_ids = list(universe.nodes.keys())
+            source_node = st.selectbox(
+                "Source Node",
+                node_ids,
+                help="Select the parent node from which to create fork(s). "
+                     "The new node(s) will be created near this node in RKHS space."
+            )
+
+            if source_node:
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    fork_title = st.text_input(
+                        "Fork Title",
+                        value=f"Fork of {source_node}",
+                        help="Title for the forked node(s). If creating multiple children, "
+                             "each will be numbered (e.g., 'Fork of node_001 0', 'Fork of node_001 1', etc.)"
+                    )
+                    fork_desc = st.text_area(
+                        "Description",
+                        value="Branching timeline",
+                        help="Description for the forked node(s). This helps document why and how the fork was created."
+                    )
+
+                with col2:
+                    perturbation = st.slider(
+                        "Position Perturbation",
+                        0.0, 1.0, 0.1,
+                        help="How far to move the forked node from the source in RKHS space. "
+                             "0.0 = exact copy at same position, 0.1 = small variation (recommended), "
+                             "0.5 = moderate variation, 1.0 = large variation. Higher values create more divergent forks."
+                    )
+                    n_children = st.number_input(
+                        "Children to Create",
+                        1, 100, 1,
+                        help="Number of child nodes to fork from the source. "
+                             "1 = single fork, 5+ = create a cluster of variations. "
+                             "Each child will have slightly different random perturbations."
+                    )
+
+                if st.button("🔱 Create Fork"):
+                    source = universe.nodes[source_node]
+
+                    for i in range(n_children):
+                        new_id = f"fork_{source_node}_{i}_{datetime.now().timestamp()}"
+
+                        # Perturb position
+                        new_position = [
+                            p + np.random.randn() * perturbation
+                            for p in source.position
+                        ]
+
+                        new_features = [
+                            f + np.random.randn() * perturbation
+                            for f in source.kernel_features
+                        ]
+
+                        new_node = RKHSNode(
+                            id=new_id,
+                            position=new_position,
+                            content={
+                                "title": f"{fork_title} {i}",
+                                "description": fork_desc,
+                                "forked_from": source_node
+                            },
+                            metadata={"fork_time": datetime.now().isoformat()},
+                            kernel_features=new_features,
+                            timestamp=datetime.now().isoformat(),
+                            parent_ids=[source_node],
+                            children_ids=[]
+                        )
+
+                        universe.nodes[new_id] = new_node
+                        source.children_ids.append(new_id)
+
+                        # Create edge
+                        sim = compute_kernel_similarity(
+                            source.kernel_features,
+                            new_features,
+                            universe.kernel_type,
+                            universe.kernel_params.get('gamma', 1.0)
+                        )
+
+                        edge = RKHSEdge(
+                            source_id=source_node,
+                            target_id=new_id,
+                            weight=1.0,
+                            kernel_similarity=sim,
+                            transition_type="fork",
+                            metadata={}
+                        )
+                        universe.edges.append(edge)
+
+                        st.session_state.forked_nodes.add(new_id)
+
+                    st.success(f"✅ Created {n_children} fork(s) from {source_node}")
+
+            # Show forked nodes
+            if st.session_state.forked_nodes:
+                st.subheader("Forked Nodes")
+                st.write(f"Total forked: {len(st.session_state.forked_nodes)}")
+                st.write(list(st.session_state.forked_nodes)[:20])
+    
+    # ========================================================================
+    # TAB 3: FILTER
+    # ========================================================================
+    with tabs[3]:
+        st.header("Filter Nodes")
+
+        if st.session_state.universe is None:
+            st.warning("⚠️ No universe loaded.")
+        else:
+            universe = st.session_state.universe
+
+            # Show auto-filter status
+            if st.session_state.auto_filter_active:
+                col_info, col_clear = st.columns([3, 1])
+                with col_info:
+                    st.info(
+                        f"ℹ️ **Auto-filter active**: Showing {len(st.session_state.filtered_nodes)} of "
+                        f"{len(universe.nodes):,} nodes for performance."
+                    )
+                with col_clear:
+                    if st.button("Clear Auto-filter"):
+                        st.session_state.filtered_nodes = None
+                        st.session_state.auto_filter_active = False
+                        st.rerun()
+                st.divider()
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                filter_type = st.selectbox(
+                    "Filter Type",
+                    ["All Nodes", "Traversed Only", "Forked Only", "By Property", "By Kernel Distance"],
+                    help="**All Nodes**: Show every node (no filtering).\n\n"
+                         "**Traversed Only**: Show nodes you marked as traversed in the Browse tab.\n\n"
+                         "**Forked Only**: Show nodes you created using the Fork tab.\n\n"
+                         "**By Property**: Filter by a numeric property value (e.g., energy between 0.3-0.7).\n\n"
+                         "**By Kernel Distance**: Show nodes within a certain distance from a reference node in RKHS space."
+                )
+
+            with col2:
+                if filter_type == "By Property":
+                    prop_key = st.text_input(
+                        "Property Key",
+                        "energy",
+                        help="Name of the property to filter by (e.g., 'energy', 'entropy'). "
+                             "Must be a numeric property that exists in node.content.properties."
+                    )
+                    prop_min = st.number_input(
+                        "Min Value",
+                        value=0.0,
+                        help="Minimum value for the property (inclusive). Nodes with property values below this will be excluded."
+                    )
+                    prop_max = st.number_input(
+                        "Max Value",
+                        value=1.0,
+                        help="Maximum value for the property (inclusive). Nodes with property values above this will be excluded."
+                    )
+
+                elif filter_type == "By Kernel Distance":
+                    ref_node = st.selectbox(
+                        "Reference Node",
+                        list(universe.nodes.keys()),
+                        help="Choose a node to use as the center point. The filter will show nodes within "
+                             "the specified distance from this reference node in RKHS space."
+                    )
+                    max_distance = st.slider(
+                        "Max Distance",
+                        0.0, 5.0, 1.0,
+                        help="Maximum Euclidean distance from the reference node in RKHS space. "
+                             "Smaller values (0.5-1.0) = nearby nodes only. Larger values (2.0-5.0) = broader neighborhood. "
+                             "Distance is calculated as ||node1.features - node2.features||."
+                    )
+
+            with col3:
+                limit = st.number_input(
+                    "Max Results",
+                    10,
+                    len(universe.nodes),
+                    min(100, len(universe.nodes)),
+                    help="Maximum number of nodes to include in the filter results. "
+                         "Helps keep visualizations responsive by limiting the node count. "
+                         "First N matching nodes will be included."
+                )
+
+            if st.button("🎯 Apply Filter"):
+                filtered = set()
+
+                if filter_type == "All Nodes":
+                    filtered = set(universe.nodes.keys())
+
+                elif filter_type == "Traversed Only":
+                    filtered = st.session_state.traversed_nodes
+
+                elif filter_type == "Forked Only":
+                    filtered = st.session_state.forked_nodes
+
+                elif filter_type == "By Property":
+                    for nid, node in universe.nodes.items():
+                        if 'properties' in node.content:
+                            val = node.content['properties'].get(prop_key)
+                            if val is not None and prop_min <= val <= prop_max:
+                                filtered.add(nid)
+
+                elif filter_type == "By Kernel Distance":
+                    ref = universe.nodes[ref_node]
+                    for nid, node in universe.nodes.items():
+                        dist = np.linalg.norm(
+                            np.array(ref.kernel_features) - np.array(node.kernel_features)
+                        )
+                        if dist <= max_distance:
+                            filtered.add(nid)
+
+                filtered = list(filtered)[:limit]
+                st.session_state.filtered_nodes = set(filtered)
+                st.session_state.auto_filter_active = False  # User applied manual filter
+
+                st.success(f"✅ Filtered to {len(filtered)} nodes")
+                st.write(filtered[:50])
+    
+    # ========================================================================
+    # TAB 4: TEXT/LLM OPERATIONS
+    # ========================================================================
+    with tabs[4]:
         st.header("Text Extraction & LLM Operations")
 
         if st.session_state.universe is None:
@@ -1621,11 +1443,11 @@ def main():
                                     sample_node = universe.nodes[sample_node_id]
                                     st.markdown(f"**{sample_node.content.get('title', sample_node_id)}**")
                                     st.write(sample_node.content.get('description', ''))
-
+    
     # ========================================================================
-    # TAB 8: LIFE TIMELINE
+    # TAB 5: LIFE TIMELINE
     # ========================================================================
-    with tabs[7]:
+    with tabs[5]:
         st.header("📅 Life Timeline Editor")
 
         if st.session_state.universe is None:
@@ -1822,7 +1644,195 @@ def main():
                         st.rerun()
 
     # ========================================================================
-    # TAB 9: MATHEMATICS
+    # TAB 6: CREATE NEW UNIVERSE
+    # ========================================================================
+    with tabs[6]:
+        st.header("Create New Universe")
+
+        if st.session_state.universe is not None:
+            st.info("Universe already loaded. Create new or modify existing?")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            name = st.text_input(
+                "Universe Name",
+                value="New Universe",
+                help="Give your universe a descriptive name. This will appear in visualizations and file exports."
+            )
+            description = st.text_area(
+                "Description",
+                value="A personal AI multiverse",
+                help="Describe what this universe represents. This helps document the purpose and contents of your multiverse."
+            )
+            dimension = st.number_input(
+                "RKHS Dimension",
+                min_value=2,
+                max_value=1000,
+                value=8,
+                help="Dimensionality of the Reproducing Kernel Hilbert Space. Higher dimensions allow more complex "
+                     "relationships but require more memory. Common values: 8 (simple), 64-128 (moderate), 768 (like MPNet embeddings)."
+            )
+
+        with col2:
+            kernel_type = st.selectbox(
+                "Kernel Type",
+                ["rbf", "linear", "polynomial", "cosine"],
+                help="**RBF (Radial Basis Function)**: Gaussian kernel, good for smooth similarity decay. Most common choice.\n\n"
+                     "**Linear**: Simple dot product, computationally efficient.\n\n"
+                     "**Polynomial**: Polynomial similarity, captures complex interactions.\n\n"
+                     "**Cosine**: Angle-based similarity, ignores magnitude."
+            )
+
+            if kernel_type == "rbf":
+                gamma = st.slider(
+                    "Gamma (RBF parameter)",
+                    0.1, 10.0, 1.0,
+                    help="Controls the width of the RBF kernel. Lower gamma (0.1-0.5) = broad influence, nodes remain similar over larger distances. "
+                         "Higher gamma (2.0-10.0) = narrow influence, only very close nodes are considered similar. Default 1.0 works well for most cases."
+                )
+                kernel_params = {"gamma": gamma}
+            else:
+                kernel_params = {}
+
+            n_nodes = st.number_input(
+                "Initial Nodes",
+                min_value=1,
+                max_value=50000,
+                value=100,
+                help="Number of nodes to create initially. Start with 100 for testing. "
+                     "You can add more nodes later using the Fork tab. Maximum 50,000 nodes."
+            )
+
+        if st.button("🌟 materialize Universe"):
+            with st.spinner("materializing universe..."):
+                universe = RKHSUniverse(
+                    name=name,
+                    description=description,
+                    dimension=dimension,
+                    kernel_type=kernel_type,
+                    kernel_params=kernel_params,
+                    nodes={},
+                    edges=[],
+                    metadata={"created": datetime.now().isoformat()}
+                )
+
+                # Generate initial nodes
+                for i in range(n_nodes):
+                    position = [np.random.randn() for _ in range(min(dimension, 3))]
+                    kernel_features = [np.random.randn() for _ in range(dimension)]
+
+                    node = RKHSNode(
+                        id=f"node_{i:06d}",
+                        position=position,
+                        content={"title": f"Node {i}", "description": ""},
+                        metadata={},
+                        kernel_features=kernel_features,
+                        timestamp=datetime.now().isoformat(),
+                        parent_ids=[],
+                        children_ids=[]
+                    )
+                    universe.nodes[node.id] = node
+
+                st.session_state.universe = universe
+                st.success(f"✅ materialized universe with {n_nodes} nodes")
+
+    # ========================================================================
+    # TAB 7: LOAD UNIVERSE
+    # ========================================================================
+    with tabs[7]:
+        st.header("Load Universe")
+
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            st.subheader("Option 1: Upload File (< 200 MB)")
+            uploaded_file = st.file_uploader(
+                "Upload RKHS Universe (JSON)",
+                type=['json'],
+                help="Upload a previously saved RKHS multiverse from your computer. "
+                     "The file must be in JSON format with .json extension and under 200 MB. "
+                     "This will load all nodes, edges, and metadata from your saved universe."
+            )
+
+            if uploaded_file:
+                temp_path = f"/tmp/{uploaded_file.name}"
+                with open(temp_path, 'wb') as f:
+                    f.write(uploaded_file.getbuffer())
+
+                universe = load_rkhs_universe(temp_path)
+                if universe:
+                    st.session_state.universe = universe
+                    apply_auto_filter_if_needed(universe)
+                    st.success(f"✅ Loaded: {universe.name}")
+                    st.json({
+                        "nodes": len(universe.nodes),
+                        "edges": len(universe.edges),
+                        "dimension": universe.dimension,
+                        "kernel_type": universe.kernel_type
+                    })
+
+            # Option 2: Pre-loaded universes
+            st.divider()
+
+            st.subheader("Option 2: Open Pre-loaded Universe")
+
+            # Dictionary of pre-configured universe files
+            PRELOADED_UNIVERSES = {
+                "Codexspace v1": "/Users/fred/xcu_my_apps/hilberts/codexspace_v1.rkhs.json",
+                "Codexspace Sample": "/Users/fred/xcu_my_apps/hilberts/multiverse_viewer/codexspace_sample.rkhs.json",
+            }
+
+            selected_universe = st.selectbox(
+                "Select Universe",
+                options=list(PRELOADED_UNIVERSES.keys()),
+                index=0,  # Default to first option (Codexspace v1)
+                help="Choose from pre-configured universe files that are already stored on the system. "
+                     "**Codexspace v1**: Full 28K+ books universe from the PG19 dataset.\n\n"
+                     "**Codexspace Sample**: Smaller sample for quick testing and exploration."
+            )
+
+            if st.button("📂 Load Selected Universe"):
+                file_path = PRELOADED_UNIVERSES[selected_universe]
+                if Path(file_path).exists():
+                    with st.spinner(f"Loading {selected_universe}..."):
+                        universe = load_rkhs_universe(file_path)
+                        if universe:
+                            st.session_state.universe = universe
+                            apply_auto_filter_if_needed(universe)
+                            st.success(f"✅ Loaded: {universe.name}")
+                            st.json({
+                                "nodes": len(universe.nodes),
+                                "edges": len(universe.edges),
+                                "dimension": universe.dimension,
+                                "kernel_type": universe.kernel_type
+                            })
+                else:
+                    st.error(f"❌ File not found: {file_path}")
+
+        with col2:
+            st.subheader("Quick Start")
+
+            n_sample_nodes = st.number_input(
+                "Sample universe size",
+                min_value=10,
+                max_value=30000,
+                value=100,
+                step=10,
+                help="Number of nodes to generate in the sample universe. "
+                     "Start with 100 for quick testing. Larger values (1000+) are useful for "
+                     "testing performance with bigger datasets. Maximum is 30,000 nodes."
+            )
+
+            if st.button("🎲 Create Sample Universe"):
+                with st.spinner(f"Generating {n_sample_nodes} nodes..."):
+                    universe = create_sample_universe(n_sample_nodes)
+                    st.session_state.universe = universe
+                    apply_auto_filter_if_needed(universe)
+                    st.success(f"✅ Created sample universe with {n_sample_nodes} nodes")
+
+    # ========================================================================
+    # TAB 8: MATHEMATICS
     # ========================================================================
     with tabs[8]:
         st.header("Mathematical Analysis")
