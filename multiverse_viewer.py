@@ -95,6 +95,28 @@ class RKHSUniverse:
     version: str = "1.0"
 
 # ============================================================================
+# ENVIRONMENT & URL UTILITIES
+# ============================================================================
+
+def is_production_env() -> bool:
+    """Check if running in production environment"""
+    import socket
+    hostname = socket.gethostname()
+    return (
+        'book-publisher' in hostname.lower() or
+        os.getenv('ENV') == 'production' or
+        os.getenv('STREAMLIT_ENV') == 'production'
+    )
+
+def get_codexes_factory_url() -> str:
+    """Get the correct Codexes Factory URL based on environment"""
+    return "https://codexes.xtuff.ai" if is_production_env() else "http://localhost:8502"
+
+def get_home_url() -> str:
+    """Get the correct home/auth URL based on environment"""
+    return "https://xtuff.ai" if is_production_env() else "http://localhost:8500"
+
+# ============================================================================
 # AUTHENTICATION UTILITIES
 # ============================================================================
 
@@ -153,7 +175,7 @@ def check_tier_limit(operation: str, current_count: int, tier: str = "free") -> 
             st.warning(f"Your {tier_info['name']} plan allows up to {max_allowed:,} nodes. You currently have {current_count:,} nodes.")
             st.info("💎 Upgrade your plan to create more nodes!")
             if st.button("⬆️ View Upgrade Options"):
-                st.markdown("[View pricing plans](http://localhost:8500/pricing)")
+                st.markdown(f"[View pricing plans]({get_home_url()}/pricing)")
             return False
 
     return True
@@ -173,7 +195,7 @@ def require_auth(operation: str = "edit or create content") -> bool:
 
     if st.button("🔑 Log In", key=f"login_{operation}"):
         # Redirect to auth page or show login form
-        st.markdown("[Click here to log in](http://localhost:8500)")
+        st.markdown(f"[Click here to log in]({get_home_url()})")
 
     return False
 
@@ -907,12 +929,12 @@ def main():
             st.caption(f"Node limit: {tier_info['max_nodes']:,}")
 
             if st.button("🔓 Logout", use_container_width=True):
-                st.markdown("[Logout here](http://localhost:8500/logout)")
+                st.markdown(f"[Logout here]({get_home_url()}/logout)")
 
             if user_tier == "free":
                 st.info("💎 Upgrade for unlimited nodes and advanced features!")
                 if st.button("⬆️ Upgrade Plan", use_container_width=True):
-                    st.markdown("[View Plans](http://localhost:8500/pricing)")
+                    st.markdown(f"[View Plans]({get_home_url()}/pricing)")
         else:
             st.info("🔓 **Browse freely** or login to save your work")
 
@@ -942,15 +964,17 @@ def main():
                         else:
                             st.error("⚠️ **Authentication System Unavailable**")
                             st.info("The authentication system could not be loaded. This is likely a temporary issue.")
-                            st.markdown("""
+                            codexes_url = get_codexes_factory_url()
+                            st.markdown(f"""
                             **Alternative:**
-                            - Visit [Codexes Factory](http://localhost:8502) to log in
+                            - Visit [Codexes Factory]({codexes_url}) to log in
                             - Or refresh this page to try again
                             """)
                             st.caption(f"Debug: AUTH_AVAILABLE={AUTH_AVAILABLE}, project_root={project_root}")
 
                     st.markdown("---")
-                    st.caption("Or login via [Codexes Factory](http://localhost:8502)")
+                    codexes_url = get_codexes_factory_url()
+                    st.caption(f"Or login via [Codexes Factory]({codexes_url})")
 
                 with tab2:
                     st.markdown("##### Create Your Account")
@@ -978,8 +1002,9 @@ def main():
                                 # Use shared auth to register (placeholder - actual implementation depends on shared auth API)
                                 st.info("🔄 Creating your account...")
                                 st.warning("⚠️ Registration feature coming soon!")
-                                st.info("""
-                                For now, please visit [Codexes Factory](http://localhost:8502) to register.
+                                codexes_url = get_codexes_factory_url()
+                                st.info(f"""
+                                For now, please visit [Codexes Factory]({codexes_url}) to register.
                                 We're working on enabling direct registration from xtuff.ai.
                                 """)
                                 # TODO: Implement registration via shared.auth when API is available
@@ -990,7 +1015,8 @@ def main():
                                 st.error(f"Registration error: {e}")
                         else:
                             st.error("⚠️ **Authentication System Unavailable**")
-                            st.info("Please try again later or visit [Codexes Factory](http://localhost:8502)")
+                            codexes_url = get_codexes_factory_url()
+                            st.info(f"Please try again later or visit [Codexes Factory]({codexes_url})")
 
                     st.markdown("---")
                     st.caption("Already have an account? Switch to the Login tab")
@@ -998,8 +1024,9 @@ def main():
         st.markdown("---")
 
         st.markdown("### 🌐 Related Apps")
-        st.markdown("""
-        📚 [Codexes Factory](http://localhost:8502) - Book publishing platform
+        codexes_url = get_codexes_factory_url()
+        st.markdown(f"""
+        📚 [Codexes Factory]({codexes_url}) - Book publishing platform
         """)
 
         st.caption("_Multiverse Viewer is your home page (port 8500)_")
