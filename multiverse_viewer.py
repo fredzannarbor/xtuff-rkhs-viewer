@@ -11,16 +11,49 @@ from scipy.spatial.distance import cosine
 import networkx as nx
 from pathlib import Path
 import os
+import sys
+import warnings
+import logging
+
+# Suppress plotly deprecation warnings from Streamlit internal code
+warnings.filterwarnings('ignore', message='.*keyword arguments.*deprecated.*config.*')
+
+# Suppress Streamlit's deprecation warnings about plotly keyword arguments
+class DeprecationWarningFilter(logging.Filter):
+    def filter(self, record):
+        msg = record.getMessage()
+        return "keyword arguments have been deprecated" not in msg and "Use `config` instead" not in msg
+
+# Apply filter to streamlit logger and all subloggers
+for logger_name in ['streamlit', 'streamlit.runtime', 'streamlit.runtime.scriptrunner']:
+    logger = logging.getLogger(logger_name)
+    logger.addFilter(DeprecationWarningFilter())
+
+# Add parent directory to path for shared modules
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+# Authentication integration
+try:
+    from shared.auth import is_authenticated, get_user_info, authenticate
+    AUTH_AVAILABLE = True
+except ImportError as e:
+    # Log the error for debugging
+    import traceback
+    print(f"Auth import error: {e}")
+    print(f"Project root: {project_root}")
+    print(f"sys.path: {sys.path[:3]}")
+    traceback.print_exc()
+    AUTH_AVAILABLE = False
 
 # LLM integration
 try:
-    from nimble_llm_caller import call_llm
+    import litellm
     from dotenv import load_dotenv
     load_dotenv()
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
-    st.warning("⚠️ nimble-llm-caller not installed. LLM features disabled. Install with: pip install nimble-llm-caller")
 
 # ============================================================================
 # RKHS FORMALIZATION DATA STRUCTURES
@@ -60,6 +93,89 @@ class RKHSUniverse:
     edges: List[RKHSEdge]
     metadata: Dict[str, Any]
     version: str = "1.0"
+
+# ============================================================================
+# AUTHENTICATION UTILITIES
+# ============================================================================
+
+def get_tier_info(tier: str = "free") -> Dict[str, Any]:
+    """Get tier limits and features"""
+    tiers = {
+        "free": {
+            "name": "Free",
+            "max_nodes": 100,
+            "max_universes": 1,
+            "max_node_size_kb": 10,
+            "features": ["Browse and explore", "View example timelines", "Fork up to 100 nodes"],
+            "price": "$0/month"
+        },
+        "consumer": {
+            "name": "Consumer",
+            "max_nodes": 1000,
+            "max_universes": 10,
+            "max_node_size_kb": 50,
+            "features": ["Create unlimited forks", "Save up to 10 multiverses", "LLM-powered text operations", "Export to JSON"],
+            "price": "$9.99/month"
+        },
+        "pro": {
+            "name": "Pro",
+            "max_nodes": 10000,
+            "max_universes": 100,
+            "max_node_size_kb": 500,
+            "features": ["Advanced analytics", "Kernel matrix visualization", "API access", "Priority support", "Collaborative multiverses"],
+            "price": "$49.99/month"
+        },
+        "enterprise": {
+            "name": "Enterprise",
+            "max_nodes": -1,  # Unlimited
+            "max_universes": -1,  # Unlimited
+            "max_node_size_kb": -1,  # Unlimited
+            "features": ["Unlimited everything", "Custom integrations", "Dedicated support", "On-premise deployment", "SLA guarantees"],
+            "price": "Custom pricing"
+        }
+    }
+    return tiers.get(tier, tiers["free"])
+
+def check_tier_limit(operation: str, current_count: int, tier: str = "free") -> bool:
+    """Check if operation is within tier limits"""
+    if not AUTH_AVAILABLE:
+        return True
+
+    tier_info = get_tier_info(tier)
+
+    if operation == "nodes":
+        max_allowed = tier_info["max_nodes"]
+        if max_allowed == -1:  # Unlimited
+            return True
+
+        if current_count >= max_allowed:
+            st.error(f"🚫 **Tier Limit Reached**")
+            st.warning(f"Your {tier_info['name']} plan allows up to {max_allowed:,} nodes. You currently have {current_count:,} nodes.")
+            st.info("💎 Upgrade your plan to create more nodes!")
+            if st.button("⬆️ View Upgrade Options"):
+                st.markdown("[View pricing plans](http://localhost:8500/pricing)")
+            return False
+
+    return True
+
+def require_auth(operation: str = "edit or create content") -> bool:
+    """Check if user is authenticated for write operations. Returns True if auth passed."""
+    if not AUTH_AVAILABLE:
+        # If auth system not available, allow operations (dev mode)
+        return True
+
+    if is_authenticated():
+        return True
+
+    # Show auth requirement
+    st.warning(f"🔒 **Authentication Required**")
+    st.info(f"You need to be logged in to {operation}. View-only access is available without login.")
+
+    if st.button("🔑 Log In", key=f"login_{operation}"):
+        # Redirect to auth page or show login form
+        st.markdown("[Click here to log in](http://localhost:8500)")
+
+    return False
 
 # ============================================================================
 # UTILITY FUNCTIONS
@@ -141,6 +257,62 @@ def apply_auto_filter_if_needed(universe: RKHSUniverse, threshold: int = 100) ->
         )
     else:
         st.session_state.auto_filter_active = False
+
+def get_user_multiverse_path() -> Optional[Path]:
+    """Get the path to the user's saved multiverse, if authenticated"""
+    if not AUTH_AVAILABLE or not is_authenticated():
+        return None
+
+    user_info = get_user_info()
+    username = user_info.get("username", user_info.get("user_email", "")).replace("@", "_").replace(".", "_")
+
+    if not username:
+        return None
+
+    # Store in multiverse_viewer directory
+    user_data_dir = Path(__file__).parent / "user_data"
+    user_data_dir.mkdir(exist_ok=True)
+
+    return user_data_dir / f"{username}_multiverse.json"
+
+def save_user_multiverse(universe: RKHSUniverse) -> None:
+    """Save user's current multiverse (first 100 nodes only) for authenticated users"""
+    user_path = get_user_multiverse_path()
+    if not user_path:
+        return
+
+    # Limit to first 100 nodes for performance
+    node_ids = sorted(list(universe.nodes.keys()))[:100]
+    limited_nodes = {node_id: universe.nodes[node_id] for node_id in node_ids}
+
+    # Filter edges to only those between kept nodes
+    limited_edges = [
+        edge for edge in universe.edges
+        if edge.source_id in limited_nodes and edge.target_id in limited_nodes
+    ]
+
+    # Create limited universe
+    limited_universe = RKHSUniverse(
+        name=universe.name,
+        description=universe.description,
+        dimension=universe.dimension,
+        kernel_type=universe.kernel_type,
+        kernel_params=universe.kernel_params,
+        nodes=limited_nodes,
+        edges=limited_edges,
+        metadata={**universe.metadata, "limited_to_100": True},
+        version=universe.version
+    )
+
+    save_rkhs_universe(limited_universe, str(user_path))
+
+def load_user_multiverse() -> Optional[RKHSUniverse]:
+    """Load user's saved multiverse if available"""
+    user_path = get_user_multiverse_path()
+    if not user_path or not user_path.exists():
+        return None
+
+    return load_rkhs_universe(str(user_path))
 
 def create_sample_universe(n_nodes: int = 100) -> RKHSUniverse:
     """Create a sample RKHS universe for demonstration"""
@@ -236,22 +408,38 @@ def extract_text_from_nodes(nodes: Dict[str, RKHSNode], node_ids: Set[str]) -> s
 
     return "\n".join(text_parts)
 
-def morph_text_with_llm(text: str, prompt: str, model: str = "claude-3-5-haiku-20241022") -> Optional[str]:
+def morph_text_with_llm(text: str, prompt: str, model: str = "anthropic/claude-3-5-haiku-20241022") -> Optional[str]:
     """Apply LLM transformation to text"""
     if not LLM_AVAILABLE:
         return None
 
     try:
-        full_prompt = f"{prompt}\n\nText to transform:\n{text}"
+        full_prompt = f"""{prompt}
 
-        response = call_llm(
-            messages=[{"role": "user", "content": full_prompt}],
+IMPORTANT: Provide ONLY the transformed text. Do not include:
+- Introductory phrases ("Here's the transformed text:", "Sure, I can help with that", etc.)
+- Explanations or commentary
+- Pleasantries or acknowledgments
+- Closing remarks
+
+Just output the direct result of the transformation.
+
+Text to transform:
+{text}"""
+
+        # Call litellm directly
+        response = litellm.completion(
             model=model,
+            messages=[{"role": "user", "content": full_prompt}],
             max_tokens=4000,
             temperature=0.7
         )
 
-        return response
+        # Extract content from response
+        if response and response.choices:
+            return response.choices[0].message.content
+        return None
+
     except Exception as e:
         st.error(f"LLM call failed: {e}")
         return None
@@ -261,7 +449,7 @@ def apply_llm_morph_to_nodes(
     node_ids: Set[str],
     prompt: str,
     field: str = "description",
-    model: str = "claude-3-5-haiku-20241022",
+    model: str = "anthropic/claude-3-5-haiku-20241022",
     batch_size: int = 5
 ) -> int:
     """Apply LLM transformation to multiple nodes intelligently"""
@@ -658,10 +846,179 @@ def create_2d_projection(universe: RKHSUniverse,
 # ============================================================================
 
 def main():
-    st.set_page_config(page_title="Your Multiverse Explorer", layout="wide")
+    st.set_page_config(
+        page_title="xtuff.ai - Your Multiverse Explorer",
+        page_icon="🌌",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
 
-    st.title("🌌 Your Multiverse Explorer")
-    st.markdown("**Explore your personal AI multiverses using Reproducing Kernel Hilbert Space (RKHS) formalizations**")
+    # Hero section with gradient styling
+    st.markdown("""
+    <style>
+    .hero-container {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        padding: 2rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+    }
+    .hero-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 0.5rem;
+    }
+    .hero-subtitle {
+        font-size: 1.2rem;
+        color: #666;
+        line-height: 1.6;
+        max-width: 800px;
+    }
+    </style>
+
+    <div class="hero-container">
+        <div class="hero-title">🌌 Your Multiverse Explorer</div>
+        <div class="hero-subtitle">
+            Navigate infinite possibilities through Reproducing Kernel Hilbert Space.
+            Visualize decisions, explore alternative timelines, and materialize ideas
+            across parallel universes—all grounded in rigorous mathematical frameworks.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Sidebar with navigation
+    with st.sidebar:
+        # Authentication Section
+        st.markdown("### 👤 Account")
+
+        if AUTH_AVAILABLE and is_authenticated():
+            user_info = get_user_info()
+            user_name = user_info.get("user_name", "User")
+            user_tier = user_info.get("subscription_tier", "free")
+
+            st.success(f"✅ Logged in as **{user_name}**")
+            st.caption(f"Tier: **{user_tier.title()}**")
+
+            # Show tier limits
+            tier_info = get_tier_info(user_tier)
+            st.caption(f"Node limit: {tier_info['max_nodes']:,}")
+
+            if st.button("🔓 Logout", use_container_width=True):
+                st.markdown("[Logout here](http://localhost:8500/logout)")
+
+            if user_tier == "free":
+                st.info("💎 Upgrade for unlimited nodes and advanced features!")
+                if st.button("⬆️ Upgrade Plan", use_container_width=True):
+                    st.markdown("[View Plans](http://localhost:8500/pricing)")
+        else:
+            st.info("🔓 **Browse freely** or login to save your work")
+
+            # Show login/register form inline
+            with st.expander("🔑 Login / Register", expanded=False):
+                tab1, tab2 = st.tabs(["Login", "Register"])
+
+                with tab1:
+                    st.markdown("##### Login")
+                    login_email = st.text_input("Email", key="login_email")
+                    login_password = st.text_input("Password", type="password", key="login_password")
+
+                    if st.button("🔑 Login", key="login_submit", use_container_width=True):
+                        if not login_email or not login_password:
+                            st.warning("⚠️ Please enter both email and password")
+                        elif AUTH_AVAILABLE:
+                            try:
+                                result = authenticate(login_email, login_password)
+                                if result:
+                                    st.success("✅ Login successful!")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Invalid credentials. Please check your email and password.")
+                            except Exception as e:
+                                st.error(f"Login error: {e}")
+                                st.caption("If you don't have an account, please register via Codexes Factory.")
+                        else:
+                            st.error("⚠️ **Authentication System Unavailable**")
+                            st.info("The authentication system could not be loaded. This is likely a temporary issue.")
+                            st.markdown("""
+                            **Alternative:**
+                            - Visit [Codexes Factory](http://localhost:8502) to log in
+                            - Or refresh this page to try again
+                            """)
+                            st.caption(f"Debug: AUTH_AVAILABLE={AUTH_AVAILABLE}, project_root={project_root}")
+
+                    st.markdown("---")
+                    st.caption("Or login via [Codexes Factory](http://localhost:8502)")
+
+                with tab2:
+                    st.markdown("##### Create Your Account")
+                    st.caption("Start exploring multiverses with a free account")
+
+                    reg_name = st.text_input("Full Name", key="reg_name")
+                    reg_email = st.text_input("Email Address", key="reg_email")
+                    reg_password = st.text_input("Password", type="password", key="reg_password")
+                    reg_password_confirm = st.text_input("Confirm Password", type="password", key="reg_password_confirm")
+
+                    st.caption("Password must be at least 8 characters")
+
+                    if st.button("✨ Create Account", key="register_submit", use_container_width=True):
+                        # Validation
+                        if not all([reg_name, reg_email, reg_password, reg_password_confirm]):
+                            st.warning("⚠️ Please fill in all fields")
+                        elif len(reg_password) < 8:
+                            st.error("❌ Password must be at least 8 characters")
+                        elif reg_password != reg_password_confirm:
+                            st.error("❌ Passwords do not match")
+                        elif "@" not in reg_email or "." not in reg_email:
+                            st.error("❌ Please enter a valid email address")
+                        elif AUTH_AVAILABLE:
+                            try:
+                                # Use shared auth to register (placeholder - actual implementation depends on shared auth API)
+                                st.info("🔄 Creating your account...")
+                                st.warning("⚠️ Registration feature coming soon!")
+                                st.info("""
+                                For now, please visit [Codexes Factory](http://localhost:8502) to register.
+                                We're working on enabling direct registration from xtuff.ai.
+                                """)
+                                # TODO: Implement registration via shared.auth when API is available
+                                # result = register_user(reg_name, reg_email, reg_password)
+                                # if result:
+                                #     st.success("✅ Account created! Please check your email to verify.")
+                            except Exception as e:
+                                st.error(f"Registration error: {e}")
+                        else:
+                            st.error("⚠️ **Authentication System Unavailable**")
+                            st.info("Please try again later or visit [Codexes Factory](http://localhost:8502)")
+
+                    st.markdown("---")
+                    st.caption("Already have an account? Switch to the Login tab")
+
+        st.markdown("---")
+
+        st.markdown("### 🌐 Related Apps")
+        st.markdown("""
+        📚 [Codexes Factory](http://localhost:8502) - Book publishing platform
+        """)
+
+        st.caption("_Multiverse Viewer is your home page (port 8500)_")
+
+        st.markdown("---")
+
+        st.markdown("### 📖 About")
+        st.markdown("""
+        This tool uses **RKHS** (Reproducing Kernel Hilbert Space) to represent
+        and navigate multiverses of possibilities. Each node represents a state,
+        decision, or idea, positioned in a high-dimensional space where distance
+        reflects semantic similarity.
+
+        **Getting Started:**
+        1. Explore the example timeline (auto-loaded)
+        2. Fork nodes to create variations
+        3. Filter and analyze your multiverse
+        4. Create your own universes
+        """)
 
     # Initialize session state
     if 'universe' not in st.session_state:
@@ -674,15 +1031,32 @@ def main():
         st.session_state.filtered_nodes = None
     if 'auto_filter_active' not in st.session_state:
         st.session_state.auto_filter_active = False
+    if 'morph_nodes' not in st.session_state:
+        st.session_state.morph_nodes = None
 
-    # Auto-load example life timeline on first run
+    # Auto-load multiverse on first run
     if 'initial_load_done' not in st.session_state:
-        example_path = Path(__file__).parent.parent / "example_life_timeline.json"
-        if example_path.exists():
-            universe = load_rkhs_universe(str(example_path))
+        universe = None
+
+        # Try to load user's saved multiverse first (if authenticated)
+        if AUTH_AVAILABLE and is_authenticated():
+            universe = load_user_multiverse()
             if universe:
-                st.session_state.universe = universe
-                apply_auto_filter_if_needed(universe)
+                st.success("✅ Loaded your saved multiverse (first 100 nodes)")
+
+        # Fall back to example timeline if no user multiverse
+        if universe is None:
+            example_path = Path(__file__).parent / "example_life_timeline.json"
+            if example_path.exists():
+                universe = load_rkhs_universe(str(example_path))
+                if universe:
+                    st.info("📚 Loaded example life timeline. Log in to save your own multiverse!")
+
+        # Set the loaded universe
+        if universe:
+            st.session_state.universe = universe
+            apply_auto_filter_if_needed(universe)
+
         st.session_state.initial_load_done = True
 
     # Create tabs - Visualize is first (home page)
@@ -767,7 +1141,7 @@ def main():
                     with col_layout:
                         layout = st.radio(
                             "Layout",
-                            ["position", "force-directed"],
+                            ["force-directed", "position"],
                             horizontal=True,
                             help="**position**: Use the actual RKHS coordinates of each node. Shows true geometric relationships in the kernel space.\n\n"
                                  "**force-directed**: Apply physics simulation to spread nodes apart. Better for seeing network structure when nodes are clustered."
@@ -786,12 +1160,14 @@ def main():
 
                     with st.spinner("Generating visualization..."):
                         fig = create_3d_network_viz(universe, nodes_to_viz, layout, color_by)
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, width='stretch', config={'displayModeBar': True})
+                    st.caption("💡 _Hover over nodes to inspect content_")
 
                 elif viz_type == "2D Projection":
                     with st.spinner("Generating visualization..."):
                         fig = create_2d_projection(universe, nodes_to_viz)
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, width='stretch', config={'displayModeBar': True})
+                    st.caption("💡 _Hover over nodes to inspect content_")
 
                 elif viz_type == "Kernel Matrix":
                     # Show kernel similarity matrix
@@ -829,7 +1205,15 @@ def main():
                             yaxis_title="Node ID"
                         )
 
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, width='stretch', config={'displayModeBar': True})
+
+                # Morph button - prepares currently visualized nodes for Text/LLM tab
+                col_morph1, col_morph2 = st.columns([2, 1])
+                with col_morph2:
+                    if st.button("🔮 Morph These Nodes", use_container_width=True, help="Pre-select these nodes in Text/LLM tab for transformation"):
+                        morph_set = nodes_to_viz if nodes_to_viz else set(universe.nodes.keys())
+                        st.session_state.morph_nodes = morph_set
+                        st.info(f"✨ {len(morph_set)} nodes ready! Go to **📝 Text/LLM** tab to transform them.")
 
                 # Summary section below the graph
                 st.divider()
@@ -1004,7 +1388,7 @@ def main():
 
             if nodes_list:
                 df = pd.DataFrame(nodes_list)
-                st.dataframe(df, use_container_width=True, height=400)
+                st.dataframe(df, width='stretch', height=400)
 
                 # Node detail view
                 selected_id = st.selectbox(
@@ -1089,6 +1473,22 @@ def main():
                     )
 
                 if st.button("🔱 Create Fork"):
+                    # Require authentication for fork operations
+                    if not require_auth("create forks"):
+                        st.stop()
+
+                    # Check tier limits
+                    user_tier = "free"
+                    if AUTH_AVAILABLE and is_authenticated():
+                        user_info = get_user_info()
+                        user_tier = user_info.get("subscription_tier", "free")
+
+                    current_node_count = len(universe.nodes)
+                    new_total = current_node_count + n_children
+
+                    if not check_tier_limit("nodes", new_total, user_tier):
+                        st.stop()
+
                     source = universe.nodes[source_node]
 
                     for i in range(n_children):
@@ -1144,6 +1544,9 @@ def main():
                         st.session_state.forked_nodes.add(new_id)
 
                     st.success(f"✅ Created {n_children} fork(s) from {source_node}")
+
+                    # Auto-save user's multiverse if authenticated
+                    save_user_multiverse(universe)
 
             # Show forked nodes
             if st.session_state.forked_nodes:
@@ -1296,14 +1699,25 @@ def main():
             col1, col2 = st.columns(2)
 
             with col1:
+                # Check if morph_nodes is available
+                options = ["All Nodes", "Filtered", "Traversed", "Forked"]
+                default_idx = 0
+                if st.session_state.morph_nodes:
+                    options.insert(0, "Morphed Nodes (from Viz)")
+                    default_idx = 0
+                    st.info("✨ Using nodes from visualization! Click 'Morphed Nodes' above.")
+
                 text_node_set = st.selectbox(
                     "Select Nodes",
-                    ["All Nodes", "Filtered", "Traversed", "Forked"],
-                    help="Choose which nodes to extract text from or transform"
+                    options,
+                    index=default_idx,
+                    help="Choose which nodes to extract text from or transform. 'Morphed Nodes' are pre-selected from the visualization."
                 )
 
             # Determine nodes
-            if text_node_set == "All Nodes":
+            if text_node_set == "Morphed Nodes (from Viz)":
+                selected_nodes = st.session_state.morph_nodes or set()
+            elif text_node_set == "All Nodes":
                 selected_nodes = set(universe.nodes.keys())
             elif text_node_set == "Filtered":
                 selected_nodes = getattr(st.session_state, 'filtered_nodes', set())
@@ -1825,11 +2239,18 @@ def main():
             )
 
             if st.button("🎲 Create Sample Universe"):
+                # Require authentication for creating universes
+                if not require_auth("create new universes"):
+                    st.stop()
+
                 with st.spinner(f"Generating {n_sample_nodes} nodes..."):
                     universe = create_sample_universe(n_sample_nodes)
                     st.session_state.universe = universe
                     apply_auto_filter_if_needed(universe)
                     st.success(f"✅ Created sample universe with {n_sample_nodes} nodes")
+
+                    # Auto-save user's multiverse if authenticated
+                    save_user_multiverse(universe)
 
     # ========================================================================
     # TAB 8: MATHEMATICS
@@ -1907,7 +2328,7 @@ def main():
                             yaxis_title="Count",
                             height=300
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch', config={'displayModeBar': True})
             
             st.divider()
             
@@ -1964,6 +2385,10 @@ def main():
             )
             
             if st.button("Save to File"):
+                # Require authentication for saving
+                if not require_auth("save universes"):
+                    st.stop()
+
                 output_path = f"/mnt/user-data/outputs/{filename}"
                 save_rkhs_universe(universe, output_path)
                 st.success(f"✅ Saved to {output_path}")
