@@ -1,0 +1,662 @@
+{
+  "name": "John's Life Timeline",
+  "description": "A personal life timeline with major events and alternative paths",
+  "dimension": 8,
+  "kernel_type": "rbf",
+  "kernel_params": {
+    "gamma": 1.0
+  },
+  "nodes": {
+    "birth_1995": {
+      "id": "birth_1995",
+      "position": [0.0, 0.5, 0.5],
+      "content": {
+        "title": "Birth",
+        "description": "Born in Boston, MA on March 15, 1995",
+        "properties": {
+          "year": 1995,
+          "age": 0,
+          "importance": 1.0,
+          "happiness": 0.5,
+          "domain": "life_milestone"
+        }
+      },
+      "metadata": {
+        "date": "1995-03-15",
+        "location": "Boston, MA",
+        "type": "birth"
+      },
+      "kernel_features": [0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0],
+      "timestamp": "1995-03-15T00:00:00",
+      "parent_ids": [],
+      "children_ids": ["elementary_school_2001"]
+    },
+    "elementary_school_2001": {
+      "id": "elementary_school_2001",
+      "position": [0.6, 0.6, 0.5],
+      "content": {
+        "title": "Started Elementary School",
+        "description": "Began at Lincoln Elementary, made first friends",
+        "properties": {
+          "year": 2001,
+          "age": 6,
+          "importance": 0.6,
+          "happiness": 0.7,
+          "domain": "education"
+        }
+      },
+      "metadata": {
+        "date": "2001-09-01",
+        "location": "Boston, MA",
+        "type": "education"
+      },
+      "kernel_features": [0.6, 0.6, 0.5, 0.1, 0.0, 0.0, 0.0, 0.8],
+      "timestamp": "2001-09-01T00:00:00",
+      "parent_ids": ["birth_1995"],
+      "children_ids": ["middle_school_2007"]
+    },
+    "middle_school_2007": {
+      "id": "middle_school_2007",
+      "position": [1.2, 0.5, 0.6],
+      "content": {
+        "title": "Middle School",
+        "description": "Discovered love for science and technology",
+        "properties": {
+          "year": 2007,
+          "age": 12,
+          "importance": 0.7,
+          "happiness": 0.6,
+          "domain": "education"
+        }
+      },
+      "metadata": {
+        "date": "2007-09-01",
+        "location": "Boston, MA",
+        "type": "education"
+      },
+      "kernel_features": [1.2, 0.5, 0.6, 0.2, 0.1, 0.0, 0.0, 0.7],
+      "timestamp": "2007-09-01T00:00:00",
+      "parent_ids": ["elementary_school_2001"],
+      "children_ids": ["high_school_2010"]
+    },
+    "high_school_2010": {
+      "id": "high_school_2010",
+      "position": [1.8, 0.6, 0.7],
+      "content": {
+        "title": "Started High School",
+        "description": "Joined robotics club, started programming",
+        "properties": {
+          "year": 2010,
+          "age": 15,
+          "importance": 0.8,
+          "happiness": 0.7,
+          "domain": "education"
+        }
+      },
+      "metadata": {
+        "date": "2010-09-01",
+        "location": "Boston, MA",
+        "type": "education"
+      },
+      "kernel_features": [1.8, 0.6, 0.7, 0.4, 0.2, 0.0, 0.0, 0.8],
+      "timestamp": "2010-09-01T00:00:00",
+      "parent_ids": ["middle_school_2007"],
+      "children_ids": ["college_acceptance_2013"]
+    },
+    "college_acceptance_2013": {
+      "id": "college_acceptance_2013",
+      "position": [2.4, 0.8, 0.7],
+      "content": {
+        "title": "Accepted to MIT",
+        "description": "Got into dream school for Computer Science",
+        "properties": {
+          "year": 2013,
+          "age": 18,
+          "importance": 0.9,
+          "happiness": 0.9,
+          "domain": "education"
+        }
+      },
+      "metadata": {
+        "date": "2013-04-01",
+        "location": "Boston, MA",
+        "type": "education"
+      },
+      "kernel_features": [2.4, 0.8, 0.7, 0.6, 0.3, 0.0, 0.0, 0.9],
+      "timestamp": "2013-04-01T00:00:00",
+      "parent_ids": ["high_school_2010"],
+      "children_ids": ["started_college_2013"]
+    },
+    "started_college_2013": {
+      "id": "started_college_2013",
+      "position": [2.6, 0.7, 0.8],
+      "content": {
+        "title": "Started MIT",
+        "description": "Began Computer Science major, met lifelong friends",
+        "properties": {
+          "year": 2013,
+          "age": 18,
+          "importance": 0.9,
+          "happiness": 0.8,
+          "domain": "education"
+        }
+      },
+      "metadata": {
+        "date": "2013-09-01",
+        "location": "Cambridge, MA",
+        "type": "education"
+      },
+      "kernel_features": [2.6, 0.7, 0.8, 0.7, 0.4, 0.1, 0.1, 0.9],
+      "timestamp": "2013-09-01T00:00:00",
+      "parent_ids": ["college_acceptance_2013"],
+      "children_ids": ["first_internship_2015"]
+    },
+    "first_internship_2015": {
+      "id": "first_internship_2015",
+      "position": [3.2, 0.7, 0.9],
+      "content": {
+        "title": "Internship at Google",
+        "description": "Summer internship in Mountain View, worked on search",
+        "properties": {
+          "year": 2015,
+          "age": 20,
+          "importance": 0.8,
+          "happiness": 0.85,
+          "domain": "career"
+        }
+      },
+      "metadata": {
+        "date": "2015-06-01",
+        "location": "Mountain View, CA",
+        "type": "career"
+      },
+      "kernel_features": [3.2, 0.7, 0.9, 0.8, 0.6, 0.2, 0.1, 0.85],
+      "timestamp": "2015-06-01T00:00:00",
+      "parent_ids": ["started_college_2013"],
+      "children_ids": ["graduation_2017"]
+    },
+    "graduation_2017": {
+      "id": "graduation_2017",
+      "position": [3.8, 0.8, 0.9],
+      "content": {
+        "title": "Graduated MIT",
+        "description": "BS in Computer Science, magna cum laude",
+        "properties": {
+          "year": 2017,
+          "age": 22,
+          "importance": 1.0,
+          "happiness": 0.9,
+          "domain": "education"
+        }
+      },
+      "metadata": {
+        "date": "2017-06-01",
+        "location": "Cambridge, MA",
+        "type": "education"
+      },
+      "kernel_features": [3.8, 0.8, 0.9, 1.0, 0.7, 0.2, 0.1, 0.95],
+      "timestamp": "2017-06-01T00:00:00",
+      "parent_ids": ["first_internship_2015"],
+      "children_ids": ["first_job_2017"]
+    },
+    "first_job_2017": {
+      "id": "first_job_2017",
+      "position": [4.0, 0.75, 1.0],
+      "content": {
+        "title": "Started at Facebook",
+        "description": "Software Engineer in Menlo Park, infrastructure team",
+        "properties": {
+          "year": 2017,
+          "age": 22,
+          "importance": 0.9,
+          "happiness": 0.8,
+          "domain": "career"
+        }
+      },
+      "metadata": {
+        "date": "2017-07-15",
+        "location": "Menlo Park, CA",
+        "type": "career"
+      },
+      "kernel_features": [4.0, 0.75, 1.0, 0.9, 0.8, 0.3, 0.2, 0.85],
+      "timestamp": "2017-07-15T00:00:00",
+      "parent_ids": ["graduation_2017"],
+      "children_ids": ["met_partner_2018"]
+    },
+    "met_partner_2018": {
+      "id": "met_partner_2018",
+      "position": [4.4, 0.85, 0.9],
+      "content": {
+        "title": "Met Sarah",
+        "description": "Met future partner at tech conference",
+        "properties": {
+          "year": 2018,
+          "age": 23,
+          "importance": 0.95,
+          "happiness": 0.95,
+          "domain": "relationships"
+        }
+      },
+      "metadata": {
+        "date": "2018-03-20",
+        "location": "San Francisco, CA",
+        "type": "relationship"
+      },
+      "kernel_features": [4.4, 0.85, 0.9, 0.8, 0.8, 0.6, 0.3, 0.95],
+      "timestamp": "2018-03-20T00:00:00",
+      "parent_ids": ["first_job_2017"],
+      "children_ids": ["promotion_2019", "moved_together_2019"]
+    },
+    "promotion_2019": {
+      "id": "promotion_2019",
+      "position": [4.8, 0.8, 1.1],
+      "content": {
+        "title": "Promoted to Senior Engineer",
+        "description": "Recognition for work on distributed systems",
+        "properties": {
+          "year": 2019,
+          "age": 24,
+          "importance": 0.75,
+          "happiness": 0.85,
+          "domain": "career"
+        }
+      },
+      "metadata": {
+        "date": "2019-01-15",
+        "location": "Menlo Park, CA",
+        "type": "career"
+      },
+      "kernel_features": [4.8, 0.8, 1.1, 1.0, 0.9, 0.6, 0.3, 0.85],
+      "timestamp": "2019-01-15T00:00:00",
+      "parent_ids": ["met_partner_2018"],
+      "children_ids": ["engagement_2020"]
+    },
+    "moved_together_2019": {
+      "id": "moved_together_2019",
+      "position": [4.9, 0.9, 0.95],
+      "content": {
+        "title": "Moved in with Sarah",
+        "description": "First apartment together in SF",
+        "properties": {
+          "year": 2019,
+          "age": 24,
+          "importance": 0.8,
+          "happiness": 0.9,
+          "domain": "relationships"
+        }
+      },
+      "metadata": {
+        "date": "2019-06-01",
+        "location": "San Francisco, CA",
+        "type": "relationship"
+      },
+      "kernel_features": [4.9, 0.9, 0.95, 0.8, 0.9, 0.8, 0.4, 0.9],
+      "timestamp": "2019-06-01T00:00:00",
+      "parent_ids": ["met_partner_2018"],
+      "children_ids": ["engagement_2020"]
+    },
+    "engagement_2020": {
+      "id": "engagement_2020",
+      "position": [5.4, 0.95, 1.0],
+      "content": {
+        "title": "Engaged to Sarah",
+        "description": "Proposed on Big Sur coastline",
+        "properties": {
+          "year": 2020,
+          "age": 25,
+          "importance": 1.0,
+          "happiness": 1.0,
+          "domain": "relationships"
+        }
+      },
+      "metadata": {
+        "date": "2020-02-14",
+        "location": "Big Sur, CA",
+        "type": "relationship"
+      },
+      "kernel_features": [5.4, 0.95, 1.0, 0.8, 0.9, 1.0, 0.5, 1.0],
+      "timestamp": "2020-02-14T00:00:00",
+      "parent_ids": ["promotion_2019", "moved_together_2019"],
+      "children_ids": ["covid_pandemic_2020"]
+    },
+    "covid_pandemic_2020": {
+      "id": "covid_pandemic_2020",
+      "position": [5.5, 0.4, 0.9],
+      "content": {
+        "title": "COVID-19 Pandemic",
+        "description": "World changed, worked from home, wedding postponed",
+        "properties": {
+          "year": 2020,
+          "age": 25,
+          "importance": 0.9,
+          "happiness": 0.4,
+          "domain": "health"
+        }
+      },
+      "metadata": {
+        "date": "2020-03-15",
+        "location": "San Francisco, CA",
+        "type": "external_event"
+      },
+      "kernel_features": [5.5, 0.4, 0.9, 0.8, 0.9, 0.9, 0.5, 0.4],
+      "timestamp": "2020-03-15T00:00:00",
+      "parent_ids": ["engagement_2020"],
+      "children_ids": ["career_pivot_2021"]
+    },
+    "career_pivot_2021": {
+      "id": "career_pivot_2021",
+      "position": [6.0, 0.65, 1.1],
+      "content": {
+        "title": "Joined Startup",
+        "description": "Left Facebook for early-stage AI startup as founding engineer",
+        "properties": {
+          "year": 2021,
+          "age": 26,
+          "importance": 0.85,
+          "happiness": 0.75,
+          "domain": "career"
+        }
+      },
+      "metadata": {
+        "date": "2021-01-15",
+        "location": "San Francisco, CA",
+        "type": "career"
+      },
+      "kernel_features": [6.0, 0.65, 1.1, 0.95, 1.0, 0.8, 0.5, 0.75],
+      "timestamp": "2021-01-15T00:00:00",
+      "parent_ids": ["covid_pandemic_2020"],
+      "children_ids": ["wedding_2021"]
+    },
+    "wedding_2021": {
+      "id": "wedding_2021",
+      "position": [6.3, 0.98, 1.0],
+      "content": {
+        "title": "Married Sarah",
+        "description": "Small ceremony in Napa Valley with close family",
+        "properties": {
+          "year": 2021,
+          "age": 26,
+          "importance": 1.0,
+          "happiness": 1.0,
+          "domain": "relationships"
+        }
+      },
+      "metadata": {
+        "date": "2021-09-25",
+        "location": "Napa Valley, CA",
+        "type": "relationship"
+      },
+      "kernel_features": [6.3, 0.98, 1.0, 0.9, 1.0, 1.0, 0.6, 1.0],
+      "timestamp": "2021-09-25T00:00:00",
+      "parent_ids": ["career_pivot_2021"],
+      "children_ids": ["startup_series_a_2022"]
+    },
+    "startup_series_a_2022": {
+      "id": "startup_series_a_2022",
+      "position": [6.8, 0.85, 1.2],
+      "content": {
+        "title": "Startup Raised Series A",
+        "description": "$15M funding round, became Engineering Lead",
+        "properties": {
+          "year": 2022,
+          "age": 27,
+          "importance": 0.9,
+          "happiness": 0.9,
+          "domain": "career"
+        }
+      },
+      "metadata": {
+        "date": "2022-04-10",
+        "location": "San Francisco, CA",
+        "type": "career"
+      },
+      "kernel_features": [6.8, 0.85, 1.2, 1.0, 1.1, 0.9, 0.6, 0.9],
+      "timestamp": "2022-04-10T00:00:00",
+      "parent_ids": ["wedding_2021"],
+      "children_ids": ["bought_house_2023"]
+    },
+    "bought_house_2023": {
+      "id": "bought_house_2023",
+      "position": [7.3, 0.88, 1.1],
+      "content": {
+        "title": "Bought First House",
+        "description": "3BR house in Oakland with yard",
+        "properties": {
+          "year": 2023,
+          "age": 28,
+          "importance": 0.85,
+          "happiness": 0.88,
+          "domain": "life_milestone"
+        }
+      },
+      "metadata": {
+        "date": "2023-07-01",
+        "location": "Oakland, CA",
+        "type": "property"
+      },
+      "kernel_features": [7.3, 0.88, 1.1, 0.9, 1.1, 1.0, 0.8, 0.9],
+      "timestamp": "2023-07-01T00:00:00",
+      "parent_ids": ["startup_series_a_2022"],
+      "children_ids": ["first_child_2024"]
+    },
+    "first_child_2024": {
+      "id": "first_child_2024",
+      "position": [7.8, 0.95, 0.9],
+      "content": {
+        "title": "Daughter Emma Born",
+        "description": "First child, life completely changed",
+        "properties": {
+          "year": 2024,
+          "age": 29,
+          "importance": 1.0,
+          "happiness": 0.95,
+          "domain": "family"
+        }
+      },
+      "metadata": {
+        "date": "2024-05-12",
+        "location": "Oakland, CA",
+        "type": "family"
+      },
+      "kernel_features": [7.8, 0.95, 0.9, 0.9, 1.1, 1.0, 1.0, 0.95],
+      "timestamp": "2024-05-12T00:00:00",
+      "parent_ids": ["bought_house_2023"],
+      "children_ids": ["current_2025"]
+    },
+    "current_2025": {
+      "id": "current_2025",
+      "position": [8.2, 0.85, 1.0],
+      "content": {
+        "title": "Present Day",
+        "description": "CTO of growing startup, father, homeowner, grateful",
+        "properties": {
+          "year": 2025,
+          "age": 30,
+          "importance": 0.8,
+          "happiness": 0.85,
+          "domain": "life_milestone"
+        }
+      },
+      "metadata": {
+        "date": "2025-01-01",
+        "location": "Oakland, CA",
+        "type": "current"
+      },
+      "kernel_features": [8.2, 0.85, 1.0, 1.0, 1.2, 1.0, 1.0, 0.85],
+      "timestamp": "2025-01-01T00:00:00",
+      "parent_ids": ["first_child_2024"],
+      "children_ids": []
+    }
+  },
+  "edges": [
+    {
+      "source_id": "birth_1995",
+      "target_id": "elementary_school_2001",
+      "weight": 1.0,
+      "kernel_similarity": 0.95,
+      "transition_type": "temporal",
+      "metadata": {"years": 6}
+    },
+    {
+      "source_id": "elementary_school_2001",
+      "target_id": "middle_school_2007",
+      "weight": 1.0,
+      "kernel_similarity": 0.92,
+      "transition_type": "temporal",
+      "metadata": {"years": 6}
+    },
+    {
+      "source_id": "middle_school_2007",
+      "target_id": "high_school_2010",
+      "weight": 1.0,
+      "kernel_similarity": 0.88,
+      "transition_type": "temporal",
+      "metadata": {"years": 3}
+    },
+    {
+      "source_id": "high_school_2010",
+      "target_id": "college_acceptance_2013",
+      "weight": 1.0,
+      "kernel_similarity": 0.85,
+      "transition_type": "causal",
+      "metadata": {"years": 3}
+    },
+    {
+      "source_id": "college_acceptance_2013",
+      "target_id": "started_college_2013",
+      "weight": 1.0,
+      "kernel_similarity": 0.98,
+      "transition_type": "direct",
+      "metadata": {"years": 0}
+    },
+    {
+      "source_id": "started_college_2013",
+      "target_id": "first_internship_2015",
+      "weight": 1.0,
+      "kernel_similarity": 0.87,
+      "transition_type": "causal",
+      "metadata": {"years": 2}
+    },
+    {
+      "source_id": "first_internship_2015",
+      "target_id": "graduation_2017",
+      "weight": 1.0,
+      "kernel_similarity": 0.90,
+      "transition_type": "temporal",
+      "metadata": {"years": 2}
+    },
+    {
+      "source_id": "graduation_2017",
+      "target_id": "first_job_2017",
+      "weight": 1.0,
+      "kernel_similarity": 0.95,
+      "transition_type": "direct",
+      "metadata": {"years": 0}
+    },
+    {
+      "source_id": "first_job_2017",
+      "target_id": "met_partner_2018",
+      "weight": 1.0,
+      "kernel_similarity": 0.82,
+      "transition_type": "temporal",
+      "metadata": {"years": 1}
+    },
+    {
+      "source_id": "met_partner_2018",
+      "target_id": "promotion_2019",
+      "weight": 0.8,
+      "kernel_similarity": 0.78,
+      "transition_type": "parallel",
+      "metadata": {"years": 1}
+    },
+    {
+      "source_id": "met_partner_2018",
+      "target_id": "moved_together_2019",
+      "weight": 1.0,
+      "kernel_similarity": 0.93,
+      "transition_type": "causal",
+      "metadata": {"years": 1}
+    },
+    {
+      "source_id": "promotion_2019",
+      "target_id": "engagement_2020",
+      "weight": 0.7,
+      "kernel_similarity": 0.75,
+      "transition_type": "parallel",
+      "metadata": {"years": 1}
+    },
+    {
+      "source_id": "moved_together_2019",
+      "target_id": "engagement_2020",
+      "weight": 1.0,
+      "kernel_similarity": 0.92,
+      "transition_type": "causal",
+      "metadata": {"years": 1}
+    },
+    {
+      "source_id": "engagement_2020",
+      "target_id": "covid_pandemic_2020",
+      "weight": 0.6,
+      "kernel_similarity": 0.65,
+      "transition_type": "external",
+      "metadata": {"years": 0}
+    },
+    {
+      "source_id": "covid_pandemic_2020",
+      "target_id": "career_pivot_2021",
+      "weight": 0.8,
+      "kernel_similarity": 0.72,
+      "transition_type": "causal",
+      "metadata": {"years": 1}
+    },
+    {
+      "source_id": "career_pivot_2021",
+      "target_id": "wedding_2021",
+      "weight": 0.9,
+      "kernel_similarity": 0.80,
+      "transition_type": "parallel",
+      "metadata": {"years": 0}
+    },
+    {
+      "source_id": "wedding_2021",
+      "target_id": "startup_series_a_2022",
+      "weight": 0.8,
+      "kernel_similarity": 0.85,
+      "transition_type": "temporal",
+      "metadata": {"years": 1}
+    },
+    {
+      "source_id": "startup_series_a_2022",
+      "target_id": "bought_house_2023",
+      "weight": 0.9,
+      "kernel_similarity": 0.88,
+      "transition_type": "causal",
+      "metadata": {"years": 1}
+    },
+    {
+      "source_id": "bought_house_2023",
+      "target_id": "first_child_2024",
+      "weight": 0.95,
+      "kernel_similarity": 0.87,
+      "transition_type": "causal",
+      "metadata": {"years": 1}
+    },
+    {
+      "source_id": "first_child_2024",
+      "target_id": "current_2025",
+      "weight": 1.0,
+      "kernel_similarity": 0.95,
+      "transition_type": "temporal",
+      "metadata": {"years": 1}
+    }
+  ],
+  "metadata": {
+    "created": "2025-11-05T08:30:00",
+    "creator": "Life Timeline Generator",
+    "subject": "John Doe",
+    "birth_year": 1995,
+    "current_year": 2025,
+    "version": "1.0"
+  },
+  "version": "1.0"
+}
