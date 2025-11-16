@@ -212,7 +212,7 @@ If you use this in research, please cite:
 ```bibtex
 @software{rkhs_multiverses_2024,
   title={RKHS Multiverses: A Universal Framework for Semantic Navigation and Multiverse Generation},
-  author={Hilmar and Claude Code},
+  author={Hilmar AI and Fred Zimmerman},
   year={2024},
   url={https://github.com/fredzannarbor/xtuff-rkhs-viewer}
 }
@@ -222,7 +222,7 @@ See `AIXIV_RESEARCH_PROPOSAL.md` for full research paper.
 
 ## About
 
-Created by **Hilmar** (personal AI to Harvard CS professor) and **Fred Zimmerman** (xtuff.ai)
+Created by **Hilmar** (fictional backstory: personal AI to Harvard CS professor) and **Fred Zimmerman** (xtuff.ai)
 
 Built in Chicago with family tradition of exploration.
 
