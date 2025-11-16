@@ -1,0 +1,305 @@
+{
+  "name": "Fred Z Life Timeline",
+  "description": "Personal life timeline with key decision points and alternate paths",
+  "dimension": 8,
+  "kernel_type": "rbf",
+  "kernel_params": {
+    "gamma": 0.5
+  },
+  "nodes": {
+    "birth_1961": {
+      "id": "birth_1961",
+      "position": [0.0, 0.0, 0.0],
+      "content": {
+        "title": "Born 1961 (Male)",
+        "description": "Fred Z born in 1961",
+        "year": 1961,
+        "age": 0,
+        "event_type": "birth",
+        "timeline": "main"
+      },
+      "metadata": {
+        "is_fork_point": true,
+        "reality": "actual"
+      },
+      "kernel_features": [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+      "timestamp": "1961-01-01T00:00:00Z",
+      "parent_ids": [],
+      "children_ids": ["college_1978_swarthmore"]
+    },
+    "birth_1961_alt_girl": {
+      "id": "birth_1961_alt_girl",
+      "position": [0.5, 0.2, 0.1],
+      "content": {
+        "title": "Born 1961 (Female - Alternate)",
+        "description": "Alternate timeline: Fred Z born female",
+        "year": 1961,
+        "age": 0,
+        "event_type": "birth",
+        "timeline": "fork_gender"
+      },
+      "metadata": {
+        "is_fork": true,
+        "fork_from": "birth_1961",
+        "fork_type": "gender",
+        "reality": "counterfactual"
+      },
+      "kernel_features": [0.9, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1],
+      "timestamp": "1961-01-01T00:00:00Z",
+      "parent_ids": ["birth_1961"],
+      "children_ids": ["college_1978_swarthmore_alt"]
+    },
+    "college_1978_swarthmore": {
+      "id": "college_1978_swarthmore",
+      "position": [0.0, 1.0, 0.0],
+      "content": {
+        "title": "College: Swarthmore (1978)",
+        "description": "Matriculates at Swarthmore College",
+        "year": 1978,
+        "age": 17,
+        "event_type": "education",
+        "institution": "Swarthmore College",
+        "timeline": "main"
+      },
+      "metadata": {
+        "is_fork_point": true,
+        "reality": "actual"
+      },
+      "kernel_features": [0.8, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+      "timestamp": "1978-09-01T00:00:00Z",
+      "parent_ids": ["birth_1961"],
+      "children_ids": ["job_1982_pcmag"]
+    },
+    "college_1978_stanford": {
+      "id": "college_1978_stanford",
+      "position": [0.6, 1.0, 0.2],
+      "content": {
+        "title": "College: Stanford (1978 - Alternate)",
+        "description": "Alternate timeline: Attends Stanford instead of Swarthmore",
+        "year": 1978,
+        "age": 17,
+        "event_type": "education",
+        "institution": "Stanford University",
+        "timeline": "fork_stanford"
+      },
+      "metadata": {
+        "is_fork": true,
+        "fork_from": "college_1978_swarthmore",
+        "fork_type": "college_choice",
+        "reality": "counterfactual"
+      },
+      "kernel_features": [0.8, 0.5, 0.3, 0.0, 0.0, 0.0, 0.0, 0.2],
+      "timestamp": "1978-09-01T00:00:00Z",
+      "parent_ids": ["birth_1961"],
+      "children_ids": ["job_1982_pcmag_alt"]
+    },
+    "college_1978_swarthmore_alt": {
+      "id": "college_1978_swarthmore_alt",
+      "position": [0.5, 1.0, 0.1],
+      "content": {
+        "title": "College: Swarthmore (1978 - Gender Fork)",
+        "description": "Female timeline: Matriculates at Swarthmore College",
+        "year": 1978,
+        "age": 17,
+        "event_type": "education",
+        "institution": "Swarthmore College",
+        "timeline": "fork_gender"
+      },
+      "metadata": {
+        "is_fork": false,
+        "reality": "counterfactual",
+        "parent_fork": "birth_1961_alt_girl"
+      },
+      "kernel_features": [0.85, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1],
+      "timestamp": "1978-09-01T00:00:00Z",
+      "parent_ids": ["birth_1961_alt_girl"],
+      "children_ids": []
+    },
+    "job_1982_pcmag": {
+      "id": "job_1982_pcmag",
+      "position": [0.0, 2.0, 0.0],
+      "content": {
+        "title": "First Job: PC Magazine (1982)",
+        "description": "Starts as staff writer at PC Magazine, decides against post-grad",
+        "year": 1982,
+        "age": 21,
+        "event_type": "career",
+        "employer": "PC Magazine",
+        "role": "Staff Writer",
+        "timeline": "main"
+      },
+      "metadata": {
+        "is_fork_point": false,
+        "reality": "actual"
+      },
+      "kernel_features": [0.6, 0.7, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0],
+      "timestamp": "1982-06-01T00:00:00Z",
+      "parent_ids": ["college_1978_swarthmore"],
+      "children_ids": ["job_1997_wired"]
+    },
+    "job_1982_pcmag_alt": {
+      "id": "job_1982_pcmag_alt",
+      "position": [0.6, 2.0, 0.2],
+      "content": {
+        "title": "First Job: PC Magazine (1982 - Stanford Fork)",
+        "description": "Stanford timeline: Starts at PC Magazine after Stanford",
+        "year": 1982,
+        "age": 21,
+        "event_type": "career",
+        "employer": "PC Magazine",
+        "role": "Staff Writer",
+        "timeline": "fork_stanford"
+      },
+      "metadata": {
+        "is_fork": false,
+        "reality": "counterfactual",
+        "parent_fork": "college_1978_stanford"
+      },
+      "kernel_features": [0.6, 0.65, 0.8, 0.3, 0.0, 0.0, 0.0, 0.2],
+      "timestamp": "1982-06-01T00:00:00Z",
+      "parent_ids": ["college_1978_stanford"],
+      "children_ids": []
+    },
+    "job_1997_wired": {
+      "id": "job_1997_wired",
+      "position": [0.0, 3.0, 0.0],
+      "content": {
+        "title": "Editor at WIRED (1997)",
+        "description": "Becomes editor at WIRED magazine",
+        "year": 1997,
+        "age": 36,
+        "event_type": "career",
+        "employer": "WIRED",
+        "role": "Editor",
+        "timeline": "main"
+      },
+      "metadata": {
+        "is_fork_point": false,
+        "reality": "actual"
+      },
+      "kernel_features": [0.4, 0.5, 0.9, 0.7, 0.0, 0.0, 0.0, 0.0],
+      "timestamp": "1997-01-01T00:00:00Z",
+      "parent_ids": ["job_1982_pcmag"],
+      "children_ids": ["job_2014_vc"]
+    },
+    "job_2014_vc": {
+      "id": "job_2014_vc",
+      "position": [0.0, 4.0, 0.0],
+      "content": {
+        "title": "Venture Capitalist (2014)",
+        "description": "Transitions to venture capital",
+        "year": 2014,
+        "age": 53,
+        "event_type": "career",
+        "role": "Venture Capitalist",
+        "timeline": "main"
+      },
+      "metadata": {
+        "is_fork_point": false,
+        "reality": "actual"
+      },
+      "kernel_features": [0.2, 0.3, 0.7, 0.9, 0.8, 0.0, 0.0, 0.0],
+      "timestamp": "2014-01-01T00:00:00Z",
+      "parent_ids": ["job_1997_wired"],
+      "children_ids": []
+    }
+  },
+  "edges": [
+    {
+      "source_id": "birth_1961",
+      "target_id": "college_1978_swarthmore",
+      "weight": 1.0,
+      "kernel_similarity": 0.95,
+      "transition_type": "temporal",
+      "metadata": {
+        "years_elapsed": 17,
+        "timeline": "main"
+      }
+    },
+    {
+      "source_id": "birth_1961",
+      "target_id": "birth_1961_alt_girl",
+      "weight": 0.8,
+      "kernel_similarity": 0.85,
+      "transition_type": "fork",
+      "metadata": {
+        "fork_type": "gender",
+        "divergence_point": "birth"
+      }
+    },
+    {
+      "source_id": "birth_1961_alt_girl",
+      "target_id": "college_1978_swarthmore_alt",
+      "weight": 1.0,
+      "kernel_similarity": 0.9,
+      "transition_type": "temporal",
+      "metadata": {
+        "years_elapsed": 17,
+        "timeline": "fork_gender"
+      }
+    },
+    {
+      "source_id": "college_1978_swarthmore",
+      "target_id": "job_1982_pcmag",
+      "weight": 1.0,
+      "kernel_similarity": 0.92,
+      "transition_type": "temporal",
+      "metadata": {
+        "years_elapsed": 4,
+        "timeline": "main"
+      }
+    },
+    {
+      "source_id": "college_1978_swarthmore",
+      "target_id": "college_1978_stanford",
+      "weight": 0.7,
+      "kernel_similarity": 0.8,
+      "transition_type": "fork",
+      "metadata": {
+        "fork_type": "college_choice",
+        "divergence_point": "college_decision"
+      }
+    },
+    {
+      "source_id": "college_1978_stanford",
+      "target_id": "job_1982_pcmag_alt",
+      "weight": 1.0,
+      "kernel_similarity": 0.88,
+      "transition_type": "temporal",
+      "metadata": {
+        "years_elapsed": 4,
+        "timeline": "fork_stanford"
+      }
+    },
+    {
+      "source_id": "job_1982_pcmag",
+      "target_id": "job_1997_wired",
+      "weight": 1.0,
+      "kernel_similarity": 0.9,
+      "transition_type": "temporal",
+      "metadata": {
+        "years_elapsed": 15,
+        "timeline": "main"
+      }
+    },
+    {
+      "source_id": "job_1997_wired",
+      "target_id": "job_2014_vc",
+      "weight": 1.0,
+      "kernel_similarity": 0.85,
+      "transition_type": "temporal",
+      "metadata": {
+        "years_elapsed": 17,
+        "timeline": "main"
+      }
+    }
+  ],
+  "metadata": {
+    "created": "2025-11-09T00:00:00Z",
+    "subject": "Fred Z",
+    "type": "life_timeline",
+    "fork_points": ["birth_1961", "college_1978_swarthmore"],
+    "timelines": ["main", "fork_gender", "fork_stanford"]
+  },
+  "version": "1.0"
+}

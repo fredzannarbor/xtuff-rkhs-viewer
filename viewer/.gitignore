@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.env
+.DS_Store
+*.log
+
+# Large RKHS files - use Git LFS or download separately
+examples/*.rkhs.json
+!examples/ideation_demo.rkhs.json
+
+# Cache
+cache/
+*.pkl

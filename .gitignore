@@ -1,0 +1,93 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Large data files (keep examples/ small files only)
+*.pkl
+codexspace_v1.rkhs.json
+large_universe*.rkhs.json
+
+# User data
+user_data/
+*.db
+*.sqlite
+
+# Cache
+cache/
+.cache/
+*.pyc
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+tmp/
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Don't include engine or build scripts
+engine/
+build_codexspace.py
+codexspace.py
+
+# Don't include deployment
+deploy*.sh
+*.service
+systemd/
+
+# Don't include development utilities
+worktrees/
+manage_worktrees.sh
+create_feature_worktree.sh
+Makefile
+
+# Don't include development docs
+*SUMMARY.md
+*BACKSTORY*.md
+DEPLOYMENT*.md
+PRODUCTION*.md
+ENHANCEMENTS*.md
+PROPOSAL_UPDATES*.md

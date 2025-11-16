@@ -1,0 +1,10 @@
+[logger]
+level = "error"
+messageFormat = "%(asctime)s %(message)s"
+
+[client]
+showErrorDetails = false
+
+[server]
+enableCORS = false
+enableXsrfProtection = false

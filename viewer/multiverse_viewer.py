@@ -1,0 +1,1035 @@
+import streamlit as st
+import json
+import numpy as np
+import pandas as pd
+from typing import Dict, List, Any, Optional, Set, Tuple
+from dataclasses import dataclass, asdict
+from datetime import datetime
+import plotly.graph_objects as go
+import plotly.express as px
+from scipy.spatial.distance import cosine
+import networkx as nx
+from pathlib import Path
+import os
+
+# ============================================================================
+# RKHS FORMALIZATION DATA STRUCTURES
+# ============================================================================
+
+@dataclass
+class RKHSNode:
+    """Node in the Reproducing Kernel Hilbert Space multiverse"""
+    id: str
+    position: List[float]  # Coordinates in RKHS
+    content: Dict[str, Any]  # Semantic content
+    metadata: Dict[str, Any]
+    kernel_features: List[float]  # Feature representation
+    timestamp: str
+    parent_ids: List[str]
+    children_ids: List[str]
+    
+@dataclass
+class RKHSEdge:
+    """Edge representing transitions/relationships in RKHS"""
+    source_id: str
+    target_id: str
+    weight: float
+    kernel_similarity: float
+    transition_type: str
+    metadata: Dict[str, Any]
+
+@dataclass
+class RKHSUniverse:
+    """Complete multiverse representation in RKHS format"""
+    name: str
+    description: str
+    dimension: int  # Dimensionality of the RKHS
+    kernel_type: str  # e.g., "rbf", "polynomial", "linear"
+    kernel_params: Dict[str, float]
+    nodes: Dict[str, RKHSNode]
+    edges: List[RKHSEdge]
+    metadata: Dict[str, Any]
+    version: str = "1.0"
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+def compute_kernel_similarity(feat1: List[float], feat2: List[float], 
+                              kernel_type: str = "rbf", gamma: float = 1.0) -> float:
+    """Compute kernel similarity between two feature vectors"""
+    feat1 = np.array(feat1)
+    feat2 = np.array(feat2)
+    
+    if kernel_type == "rbf":
+        return np.exp(-gamma * np.linalg.norm(feat1 - feat2) ** 2)
+    elif kernel_type == "linear":
+        return np.dot(feat1, feat2)
+    elif kernel_type == "polynomial":
+        return (np.dot(feat1, feat2) + 1) ** 2
+    else:
+        return 1.0 - cosine(feat1, feat2)
+
+def load_rkhs_universe(file_path: str) -> Optional[RKHSUniverse]:
+    """Load RKHS universe from JSON file"""
+    try:
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+        
+        nodes = {
+            node_id: RKHSNode(**node_data) 
+            for node_id, node_data in data['nodes'].items()
+        }
+        
+        edges = [RKHSEdge(**edge_data) for edge_data in data['edges']]
+        
+        universe = RKHSUniverse(
+            name=data['name'],
+            description=data['description'],
+            dimension=data['dimension'],
+            kernel_type=data['kernel_type'],
+            kernel_params=data['kernel_params'],
+            nodes=nodes,
+            edges=edges,
+            metadata=data.get('metadata', {}),
+            version=data.get('version', '1.0')
+        )
+        
+        return universe
+    except Exception as e:
+        st.error(f"Error loading universe: {e}")
+        return None
+
+def save_rkhs_universe(universe: RKHSUniverse, file_path: str):
+    """Save RKHS universe to JSON file"""
+    data = {
+        'name': universe.name,
+        'description': universe.description,
+        'dimension': universe.dimension,
+        'kernel_type': universe.kernel_type,
+        'kernel_params': universe.kernel_params,
+        'nodes': {node_id: asdict(node) for node_id, node in universe.nodes.items()},
+        'edges': [asdict(edge) for edge in universe.edges],
+        'metadata': universe.metadata,
+        'version': universe.version
+    }
+    
+    with open(file_path, 'w') as f:
+        json.dump(data, f, indent=2)
+
+def apply_auto_filter_if_needed(universe: RKHSUniverse, threshold: int = 100) -> None:
+    """Apply automatic filter to large universes for performance"""
+    if len(universe.nodes) > threshold:
+        # Get first N nodes (sorted by ID for consistency)
+        node_ids = sorted(list(universe.nodes.keys()))[:threshold]
+        st.session_state.filtered_nodes = set(node_ids)
+        st.session_state.auto_filter_active = True
+        st.info(
+            f"ℹ️ **Auto-filter applied**: This universe has {len(universe.nodes):,} nodes. "
+            f"Automatically limited to {threshold} nodes for performance. "
+            f"You can adjust or clear this filter in the 🎯 Filter tab."
+        )
+    else:
+        st.session_state.auto_filter_active = False
+
+def create_sample_universe(n_nodes: int = 100) -> RKHSUniverse:
+    """Create a sample RKHS universe for demonstration"""
+    nodes = {}
+    edges = []
+    
+    # Create nodes in a 3D RKHS
+    for i in range(n_nodes):
+        theta = 2 * np.pi * i / n_nodes
+        phi = np.pi * (i % 10) / 10
+        
+        position = [
+            np.cos(theta) * np.sin(phi),
+            np.sin(theta) * np.sin(phi),
+            np.cos(phi)
+        ]
+        
+        kernel_features = position + [np.random.randn() for _ in range(5)]
+        
+        node = RKHSNode(
+            id=f"node_{i:04d}",
+            position=position,
+            content={
+                "title": f"State {i}",
+                "description": f"Description of multiverse state {i}",
+                "properties": {"energy": np.random.rand(), "entropy": np.random.rand()}
+            },
+            metadata={"created": datetime.now().isoformat(), "type": "state"},
+            kernel_features=kernel_features,
+            timestamp=datetime.now().isoformat(),
+            parent_ids=[f"node_{(i-1):04d}"] if i > 0 else [],
+            children_ids=[f"node_{(i+1):04d}"] if i < n_nodes - 1 else []
+        )
+        nodes[node.id] = node
+        
+        # Create edges
+        if i > 0:
+            source = nodes[f"node_{(i-1):04d}"]
+            sim = compute_kernel_similarity(source.kernel_features, kernel_features)
+            edge = RKHSEdge(
+                source_id=source.id,
+                target_id=node.id,
+                weight=1.0,
+                kernel_similarity=sim,
+                transition_type="temporal",
+                metadata={}
+            )
+            edges.append(edge)
+    
+    universe = RKHSUniverse(
+        name="Sample Universe",
+        description="A demonstration RKHS multiverse",
+        dimension=8,
+        kernel_type="rbf",
+        kernel_params={"gamma": 1.0},
+        nodes=nodes,
+        edges=edges,
+        metadata={"created": datetime.now().isoformat()}
+    )
+    
+    return universe
+
+# ============================================================================
+# VISUALIZATION FUNCTIONS
+# ============================================================================
+
+def create_3d_network_viz(universe: RKHSUniverse, 
+                          selected_nodes: Optional[Set[str]] = None,
+                          layout_type: str = "position") -> go.Figure:
+    """Create interactive 3D network visualization"""
+    
+    if selected_nodes is None:
+        selected_nodes = set(universe.nodes.keys())
+    
+    # Filter nodes and edges
+    nodes_to_show = {nid: node for nid, node in universe.nodes.items() 
+                     if nid in selected_nodes}
+    edges_to_show = [e for e in universe.edges 
+                     if e.source_id in selected_nodes and e.target_id in selected_nodes]
+    
+    # Prepare node positions
+    if layout_type == "position":
+        node_positions = {nid: node.position[:3] for nid, node in nodes_to_show.items()}
+    else:
+        # Use networkx for alternative layouts
+        G = nx.DiGraph()
+        for nid in nodes_to_show.keys():
+            G.add_node(nid)
+        for edge in edges_to_show:
+            G.add_edge(edge.source_id, edge.target_id)
+        
+        if len(G.nodes()) > 1:
+            pos_2d = nx.spring_layout(G, dim=2, seed=42)
+            node_positions = {nid: [pos[0], pos[1], 0] for nid, pos in pos_2d.items()}
+        else:
+            node_positions = {nid: [0, 0, 0] for nid in nodes_to_show.keys()}
+    
+    # Create edge traces
+    edge_traces = []
+    for edge in edges_to_show:
+        if edge.source_id in node_positions and edge.target_id in node_positions:
+            x0, y0, z0 = node_positions[edge.source_id]
+            x1, y1, z1 = node_positions[edge.target_id]
+
+            # Clamp alpha to reasonable range (0.1 to 1.0) for visibility
+            alpha = max(0.1, min(1.0, edge.kernel_similarity))
+
+            edge_trace = go.Scatter3d(
+                x=[x0, x1, None],
+                y=[y0, y1, None],
+                z=[z0, z1, None],
+                mode='lines',
+                line=dict(
+                    color=f'rgba(125, 125, 125, {alpha})',
+                    width=edge.weight * 2
+                ),
+                hoverinfo='none',
+                showlegend=False
+            )
+            edge_traces.append(edge_trace)
+    
+    # Create node trace
+    node_x = []
+    node_y = []
+    node_z = []
+    node_text = []
+    node_colors = []
+    
+    for nid, pos in node_positions.items():
+        node = nodes_to_show[nid]
+        node_x.append(pos[0])
+        node_y.append(pos[1])
+        node_z.append(pos[2])
+        
+        text = f"<b>{node.content.get('title', nid)}</b><br>"
+        text += f"ID: {nid}<br>"
+        text += f"Position: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})<br>"
+        if 'properties' in node.content:
+            for k, v in node.content['properties'].items():
+                if isinstance(v, (int, float)):
+                    text += f"{k}: {v:.3f}<br>"
+                else:
+                    text += f"{k}: {v}<br>"
+        node_text.append(text)
+        
+        # Color by properties or default
+        if 'properties' in node.content and 'energy' in node.content['properties']:
+            node_colors.append(node.content['properties']['energy'])
+        else:
+            node_colors.append(0.5)
+    
+    node_trace = go.Scatter3d(
+        x=node_x,
+        y=node_y,
+        z=node_z,
+        mode='markers',
+        marker=dict(
+            size=8,
+            color=node_colors,
+            colorscale='Viridis',
+            showscale=True,
+            colorbar=dict(title="Energy"),
+            line=dict(color='white', width=0.5)
+        ),
+        text=node_text,
+        hoverinfo='text',
+        name='Nodes'
+    )
+    
+    # Create figure
+    fig = go.Figure(data=edge_traces + [node_trace])
+    
+    fig.update_layout(
+        title=f"{universe.name} - Network View ({len(nodes_to_show)} nodes)",
+        showlegend=False,
+        hovermode='closest',
+        scene=dict(
+            xaxis=dict(showbackground=False, title='X'),
+            yaxis=dict(showbackground=False, title='Y'),
+            zaxis=dict(showbackground=False, title='Z'),
+        ),
+        height=700
+    )
+    
+    return fig
+
+def create_2d_projection(universe: RKHSUniverse, 
+                        selected_nodes: Optional[Set[str]] = None) -> go.Figure:
+    """Create 2D projection of RKHS space"""
+    
+    if selected_nodes is None:
+        selected_nodes = set(universe.nodes.keys())
+    
+    nodes_to_show = {nid: node for nid, node in universe.nodes.items() 
+                     if nid in selected_nodes}
+    
+    x_coords = []
+    y_coords = []
+    texts = []
+    colors = []
+    
+    for nid, node in nodes_to_show.items():
+        pos = node.position
+        x_coords.append(pos[0])
+        y_coords.append(pos[1] if len(pos) > 1 else 0)
+        texts.append(node.content.get('title', nid))
+        
+        if 'properties' in node.content and 'energy' in node.content['properties']:
+            colors.append(node.content['properties']['energy'])
+        else:
+            colors.append(0.5)
+    
+    fig = go.Figure(data=go.Scatter(
+        x=x_coords,
+        y=y_coords,
+        mode='markers+text',
+        marker=dict(
+            size=10,
+            color=colors,
+            colorscale='Viridis',
+            showscale=True,
+            line=dict(color='white', width=1)
+        ),
+        text=texts,
+        textposition="top center",
+        hovertemplate='<b>%{text}</b><br>X: %{x:.2f}<br>Y: %{y:.2f}<extra></extra>'
+    ))
+    
+    fig.update_layout(
+        title=f"{universe.name} - 2D Projection",
+        xaxis_title="Dimension 1",
+        yaxis_title="Dimension 2",
+        height=600,
+        hovermode='closest'
+    )
+    
+    return fig
+
+# ============================================================================
+# STREAMLIT APPLICATION
+# ============================================================================
+
+def main():
+    st.set_page_config(page_title="RKHS Multiverse Viewer", layout="wide")
+    
+    st.title("🌌 RKHS Multiverse Viewer")
+    st.markdown("**Reproducing Kernel Hilbert Space** formalization for personal AI multiverses")
+    
+    # Initialize session state
+    if 'universe' not in st.session_state:
+        st.session_state.universe = None
+    if 'forked_nodes' not in st.session_state:
+        st.session_state.forked_nodes = set()
+    if 'traversed_nodes' not in st.session_state:
+        st.session_state.traversed_nodes = set()
+    if 'filtered_nodes' not in st.session_state:
+        st.session_state.filtered_nodes = None
+    if 'auto_filter_active' not in st.session_state:
+        st.session_state.auto_filter_active = False
+    
+    # Create tabs
+    tabs = st.tabs([
+        "🌍 Open",
+        "✨ Materialize", 
+        "🔍 Browse",
+        "🔱 Fork",
+        "🎯 Filter",
+        "📊 Visualize",
+        "🔢 Mathematics"
+    ])
+    
+    # ========================================================================
+    # TAB 1: OPEN
+    # ========================================================================
+    with tabs[0]:
+        st.header("Open Universe")
+
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            st.subheader("Option 1: Upload File (< 200 MB)")
+            uploaded_file = st.file_uploader(
+                "Upload RKHS Universe (JSON)",
+                type=['json'],
+                help="Load a saved RKHS multiverse formalization (max 200 MB)"
+            )
+
+            if uploaded_file:
+                temp_path = f"/tmp/{uploaded_file.name}"
+                with open(temp_path, 'wb') as f:
+                    f.write(uploaded_file.getbuffer())
+
+                universe = load_rkhs_universe(temp_path)
+                if universe:
+                    st.session_state.universe = universe
+                    apply_auto_filter_if_needed(universe)
+                    st.success(f"✅ Loaded: {universe.name}")
+                    st.json({
+                        "nodes": len(universe.nodes),
+                        "edges": len(universe.edges),
+                        "dimension": universe.dimension,
+                        "kernel_type": universe.kernel_type
+                    })
+
+            # Option 2: Pre-loaded universes
+            st.divider()
+
+            st.subheader("Option 2: Open Pre-loaded Universe")
+
+            # Dictionary of pre-configured universe files (relative to this file)
+            viewer_dir = Path(__file__).parent
+            PRELOADED_UNIVERSES = {
+                "Codexspace v1": str(viewer_dir / "examples" / "codexspace_v1.rkhs.json"),
+                "Codexspace Sample": str(viewer_dir / "examples" / "codexspace_sample.rkhs.json"),
+                "Ideation Demo": str(viewer_dir / "examples" / "ideation_demo.rkhs.json"),
+            }
+
+            selected_universe = st.selectbox(
+                "Select Universe",
+                options=list(PRELOADED_UNIVERSES.keys()),
+                index=0,  # Default to first option (Codexspace v1)
+                help="Choose from pre-configured universe files"
+            )
+
+            if st.button("📂 Load Selected Universe"):
+                file_path = PRELOADED_UNIVERSES[selected_universe]
+                if Path(file_path).exists():
+                    with st.spinner(f"Loading {selected_universe}..."):
+                        universe = load_rkhs_universe(file_path)
+                        if universe:
+                            st.session_state.universe = universe
+                            apply_auto_filter_if_needed(universe)
+                            st.success(f"✅ Loaded: {universe.name}")
+                            st.json({
+                                "nodes": len(universe.nodes),
+                                "edges": len(universe.edges),
+                                "dimension": universe.dimension,
+                                "kernel_type": universe.kernel_type
+                            })
+                else:
+                    st.error(f"❌ File not found: {file_path}")
+        
+        with col2:
+            st.subheader("Quick Start")
+            
+            n_sample_nodes = st.number_input(
+                "Sample universe size",
+                min_value=10,
+                max_value=30000,
+                value=100,
+                step=10
+            )
+            
+            if st.button("🎲 Create Sample Universe"):
+                with st.spinner(f"Generating {n_sample_nodes} nodes..."):
+                    universe = create_sample_universe(n_sample_nodes)
+                    st.session_state.universe = universe
+                    apply_auto_filter_if_needed(universe)
+                    st.success(f"✅ Created sample universe with {n_sample_nodes} nodes")
+    
+    # ========================================================================
+    # TAB 2: MATERIALIZE
+    # ========================================================================
+    with tabs[1]:
+        st.header("Materialize New Universe")
+        
+        if st.session_state.universe is not None:
+            st.info("Universe already loaded. Create new or modify existing?")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            name = st.text_input("Universe Name", value="New Universe")
+            description = st.text_area("Description", value="A personal AI multiverse")
+            dimension = st.number_input("RKHS Dimension", min_value=2, max_value=1000, value=8)
+        
+        with col2:
+            kernel_type = st.selectbox(
+                "Kernel Type",
+                ["rbf", "linear", "polynomial", "cosine"]
+            )
+            
+            if kernel_type == "rbf":
+                gamma = st.slider("Gamma (RBF parameter)", 0.1, 10.0, 1.0)
+                kernel_params = {"gamma": gamma}
+            else:
+                kernel_params = {}
+            
+            n_nodes = st.number_input("Initial Nodes", min_value=1, max_value=50000, value=100)
+        
+        if st.button("🌟 Materialize Universe"):
+            with st.spinner("Materializing universe..."):
+                universe = RKHSUniverse(
+                    name=name,
+                    description=description,
+                    dimension=dimension,
+                    kernel_type=kernel_type,
+                    kernel_params=kernel_params,
+                    nodes={},
+                    edges=[],
+                    metadata={"created": datetime.now().isoformat()}
+                )
+                
+                # Generate initial nodes
+                for i in range(n_nodes):
+                    position = [np.random.randn() for _ in range(min(dimension, 3))]
+                    kernel_features = [np.random.randn() for _ in range(dimension)]
+                    
+                    node = RKHSNode(
+                        id=f"node_{i:06d}",
+                        position=position,
+                        content={"title": f"Node {i}", "description": ""},
+                        metadata={},
+                        kernel_features=kernel_features,
+                        timestamp=datetime.now().isoformat(),
+                        parent_ids=[],
+                        children_ids=[]
+                    )
+                    universe.nodes[node.id] = node
+                
+                st.session_state.universe = universe
+                st.success(f"✅ Materialized universe with {n_nodes} nodes")
+    
+    # ========================================================================
+    # TAB 3: BROWSE
+    # ========================================================================
+    with tabs[2]:
+        st.header("Browse Universe")
+        
+        if st.session_state.universe is None:
+            st.warning("⚠️ No universe loaded. Please open or create a universe first.")
+        else:
+            universe = st.session_state.universe
+            
+            # Summary statistics
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Nodes", len(universe.nodes))
+            col2.metric("Edges", len(universe.edges))
+            col3.metric("Dimension", universe.dimension)
+            col4.metric("Kernel", universe.kernel_type)
+            
+            st.divider()
+            
+            # Node browser
+            search = st.text_input("🔍 Search nodes", "")
+            
+            nodes_list = []
+            for nid, node in universe.nodes.items():
+                title = node.content.get('title', nid)
+                if search.lower() in title.lower() or search.lower() in nid.lower():
+                    nodes_list.append({
+                        'ID': nid,
+                        'Title': title,
+                        'Parents': len(node.parent_ids),
+                        'Children': len(node.children_ids),
+                        'Timestamp': node.timestamp
+                    })
+            
+            if nodes_list:
+                df = pd.DataFrame(nodes_list)
+                st.dataframe(df, use_container_width=True, height=400)
+                
+                # Node detail view
+                selected_id = st.selectbox("Select node for details", df['ID'].tolist())
+                
+                if selected_id:
+                    node = universe.nodes[selected_id]
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.subheader("Content")
+                        st.json(node.content)
+                    
+                    with col2:
+                        st.subheader("Metadata")
+                        st.write(f"**Position:** {node.position[:3]}")
+                        st.write(f"**Parents:** {len(node.parent_ids)}")
+                        st.write(f"**Children:** {len(node.children_ids)}")
+                        st.json(node.metadata)
+                    
+                    # Mark as traversed
+                    if st.button(f"📍 Mark as Traversed"):
+                        st.session_state.traversed_nodes.add(selected_id)
+                        st.success(f"Added {selected_id} to traversed nodes")
+    
+    # ========================================================================
+    # TAB 4: FORK
+    # ========================================================================
+    with tabs[3]:
+        st.header("Fork & Branch")
+        
+        if st.session_state.universe is None:
+            st.warning("⚠️ No universe loaded.")
+        else:
+            universe = st.session_state.universe
+            
+            st.subheader("Create Fork from Node")
+            
+            node_ids = list(universe.nodes.keys())
+            source_node = st.selectbox("Source Node", node_ids)
+            
+            if source_node:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    fork_title = st.text_input("Fork Title", value=f"Fork of {source_node}")
+                    fork_desc = st.text_area("Description", value="Branching timeline")
+                
+                with col2:
+                    perturbation = st.slider("Position Perturbation", 0.0, 1.0, 0.1)
+                    n_children = st.number_input("Children to Create", 1, 100, 1)
+                
+                if st.button("🔱 Create Fork"):
+                    source = universe.nodes[source_node]
+                    
+                    for i in range(n_children):
+                        new_id = f"fork_{source_node}_{i}_{datetime.now().timestamp()}"
+                        
+                        # Perturb position
+                        new_position = [
+                            p + np.random.randn() * perturbation 
+                            for p in source.position
+                        ]
+                        
+                        new_features = [
+                            f + np.random.randn() * perturbation 
+                            for f in source.kernel_features
+                        ]
+                        
+                        new_node = RKHSNode(
+                            id=new_id,
+                            position=new_position,
+                            content={
+                                "title": f"{fork_title} {i}",
+                                "description": fork_desc,
+                                "forked_from": source_node
+                            },
+                            metadata={"fork_time": datetime.now().isoformat()},
+                            kernel_features=new_features,
+                            timestamp=datetime.now().isoformat(),
+                            parent_ids=[source_node],
+                            children_ids=[]
+                        )
+                        
+                        universe.nodes[new_id] = new_node
+                        source.children_ids.append(new_id)
+                        
+                        # Create edge
+                        sim = compute_kernel_similarity(
+                            source.kernel_features,
+                            new_features,
+                            universe.kernel_type,
+                            universe.kernel_params.get('gamma', 1.0)
+                        )
+                        
+                        edge = RKHSEdge(
+                            source_id=source_node,
+                            target_id=new_id,
+                            weight=1.0,
+                            kernel_similarity=sim,
+                            transition_type="fork",
+                            metadata={}
+                        )
+                        universe.edges.append(edge)
+                        
+                        st.session_state.forked_nodes.add(new_id)
+                    
+                    st.success(f"✅ Created {n_children} fork(s) from {source_node}")
+            
+            # Show forked nodes
+            if st.session_state.forked_nodes:
+                st.subheader("Forked Nodes")
+                st.write(f"Total forked: {len(st.session_state.forked_nodes)}")
+                st.write(list(st.session_state.forked_nodes)[:20])
+    
+    # ========================================================================
+    # TAB 5: FILTER
+    # ========================================================================
+    with tabs[4]:
+        st.header("Filter Nodes")
+
+        if st.session_state.universe is None:
+            st.warning("⚠️ No universe loaded.")
+        else:
+            universe = st.session_state.universe
+
+            # Show auto-filter status
+            if st.session_state.auto_filter_active:
+                col_info, col_clear = st.columns([3, 1])
+                with col_info:
+                    st.info(
+                        f"ℹ️ **Auto-filter active**: Showing {len(st.session_state.filtered_nodes)} of "
+                        f"{len(universe.nodes):,} nodes for performance."
+                    )
+                with col_clear:
+                    if st.button("Clear Auto-filter"):
+                        st.session_state.filtered_nodes = None
+                        st.session_state.auto_filter_active = False
+                        st.rerun()
+                st.divider()
+
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                filter_type = st.selectbox(
+                    "Filter Type",
+                    ["All Nodes", "Traversed Only", "Forked Only", "By Property", "By Kernel Distance"]
+                )
+            
+            with col2:
+                if filter_type == "By Property":
+                    prop_key = st.text_input("Property Key", "energy")
+                    prop_min = st.number_input("Min Value", value=0.0)
+                    prop_max = st.number_input("Max Value", value=1.0)
+                
+                elif filter_type == "By Kernel Distance":
+                    ref_node = st.selectbox("Reference Node", list(universe.nodes.keys()))
+                    max_distance = st.slider("Max Distance", 0.0, 5.0, 1.0)
+            
+            with col3:
+                limit = st.number_input("Max Results", 10, len(universe.nodes), min(100, len(universe.nodes)))
+            
+            if st.button("🎯 Apply Filter"):
+                filtered = set()
+                
+                if filter_type == "All Nodes":
+                    filtered = set(universe.nodes.keys())
+                
+                elif filter_type == "Traversed Only":
+                    filtered = st.session_state.traversed_nodes
+                
+                elif filter_type == "Forked Only":
+                    filtered = st.session_state.forked_nodes
+                
+                elif filter_type == "By Property":
+                    for nid, node in universe.nodes.items():
+                        if 'properties' in node.content:
+                            val = node.content['properties'].get(prop_key)
+                            if val is not None and prop_min <= val <= prop_max:
+                                filtered.add(nid)
+                
+                elif filter_type == "By Kernel Distance":
+                    ref = universe.nodes[ref_node]
+                    for nid, node in universe.nodes.items():
+                        dist = np.linalg.norm(
+                            np.array(ref.kernel_features) - np.array(node.kernel_features)
+                        )
+                        if dist <= max_distance:
+                            filtered.add(nid)
+                
+                filtered = list(filtered)[:limit]
+                st.session_state.filtered_nodes = set(filtered)
+                st.session_state.auto_filter_active = False  # User applied manual filter
+
+                st.success(f"✅ Filtered to {len(filtered)} nodes")
+                st.write(filtered[:50])
+    
+    # ========================================================================
+    # TAB 6: VISUALIZE
+    # ========================================================================
+    with tabs[5]:
+        st.header("Interactive Visualization")
+        
+        if st.session_state.universe is None:
+            st.warning("⚠️ No universe loaded.")
+        else:
+            universe = st.session_state.universe
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                viz_type = st.selectbox(
+                    "Visualization Type",
+                    ["3D Network", "2D Projection", "Kernel Matrix"]
+                )
+            
+            with col2:
+                node_set = st.selectbox(
+                    "Node Set",
+                    ["All Nodes", "Filtered", "Traversed", "Forked", "Sample"]
+                )
+            
+            with col3:
+                if node_set == "Sample":
+                    sample_size = st.number_input(
+                        "Sample Size",
+                        min_value=10,
+                        max_value=min(1000, len(universe.nodes)),
+                        value=min(200, len(universe.nodes))
+                    )
+            
+            # Determine which nodes to show
+            if node_set == "All Nodes":
+                nodes_to_viz = None  # Show all
+            elif node_set == "Filtered":
+                nodes_to_viz = getattr(st.session_state, 'filtered_nodes', None)
+            elif node_set == "Traversed":
+                nodes_to_viz = st.session_state.traversed_nodes
+            elif node_set == "Forked":
+                nodes_to_viz = st.session_state.forked_nodes
+            elif node_set == "Sample":
+                all_ids = list(universe.nodes.keys())
+                nodes_to_viz = set(np.random.choice(all_ids, size=min(sample_size, len(all_ids)), replace=False))
+            
+            if nodes_to_viz is not None and len(nodes_to_viz) == 0:
+                st.warning("⚠️ No nodes in selected set")
+            else:
+                with st.spinner("Generating visualization..."):
+                    if viz_type == "3D Network":
+                        layout = st.radio("Layout", ["position", "force-directed"], horizontal=True)
+                        fig = create_3d_network_viz(universe, nodes_to_viz, layout)
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    elif viz_type == "2D Projection":
+                        fig = create_2d_projection(universe, nodes_to_viz)
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    elif viz_type == "Kernel Matrix":
+                        # Show kernel similarity matrix
+                        if nodes_to_viz:
+                            node_list = list(nodes_to_viz)[:100]  # Limit for performance
+                        else:
+                            node_list = list(universe.nodes.keys())[:100]
+                        
+                        n = len(node_list)
+                        kernel_matrix = np.zeros((n, n))
+                        
+                        for i, nid1 in enumerate(node_list):
+                            for j, nid2 in enumerate(node_list):
+                                node1 = universe.nodes[nid1]
+                                node2 = universe.nodes[nid2]
+                                kernel_matrix[i, j] = compute_kernel_similarity(
+                                    node1.kernel_features,
+                                    node2.kernel_features,
+                                    universe.kernel_type,
+                                    universe.kernel_params.get('gamma', 1.0)
+                                )
+                        
+                        fig = go.Figure(data=go.Heatmap(
+                            z=kernel_matrix,
+                            x=node_list,
+                            y=node_list,
+                            colorscale='Viridis'
+                        ))
+                        
+                        fig.update_layout(
+                            title="Kernel Similarity Matrix",
+                            height=600,
+                            xaxis_title="Node ID",
+                            yaxis_title="Node ID"
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                
+                # Export visualization data
+                if st.button("💾 Export Visualization Data"):
+                    export_data = {
+                        'universe_name': universe.name,
+                        'node_set': node_set,
+                        'nodes': list(nodes_to_viz) if nodes_to_viz else list(universe.nodes.keys())
+                    }
+                    st.download_button(
+                        "Download JSON",
+                        json.dumps(export_data, indent=2),
+                        file_name=f"viz_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                    )
+    
+    # ========================================================================
+    # TAB 7: MATHEMATICS
+    # ========================================================================
+    with tabs[6]:
+        st.header("Mathematical Analysis")
+        
+        if st.session_state.universe is None:
+            st.warning("⚠️ No universe loaded.")
+        else:
+            universe = st.session_state.universe
+            
+            st.subheader("RKHS Properties")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown(f"""
+                **Universe Specification:**
+                - **Dimension:** {universe.dimension}
+                - **Kernel Type:** {universe.kernel_type}
+                - **Parameters:** {universe.kernel_params}
+                - **Nodes:** {len(universe.nodes)}
+                - **Edges:** {len(universe.edges)}
+                """)
+                
+                st.markdown("""
+                **RKHS Formalization:**
+                
+                The multiverse is embedded in a Reproducing Kernel Hilbert Space ℋ where:
+                
+                1. Each state s ∈ ℋ with ||s|| < ∞
+                2. Kernel function K: ℋ × ℋ → ℝ measures similarity
+                3. Inner product ⟨s₁, s₂⟩_ℋ defines geometry
+                4. Transitions preserve kernel structure
+                """)
+            
+            with col2:
+                # Compute statistics
+                if len(universe.nodes) > 1:
+                    # Sample for efficiency
+                    sample_nodes = list(universe.nodes.values())[:1000]
+                    
+                    # Compute pairwise distances
+                    distances = []
+                    similarities = []
+                    
+                    for i, node1 in enumerate(sample_nodes[:100]):
+                        for node2 in sample_nodes[i+1:i+20]:
+                            dist = np.linalg.norm(
+                                np.array(node1.kernel_features) - np.array(node2.kernel_features)
+                            )
+                            distances.append(dist)
+                            
+                            sim = compute_kernel_similarity(
+                                node1.kernel_features,
+                                node2.kernel_features,
+                                universe.kernel_type,
+                                universe.kernel_params.get('gamma', 1.0)
+                            )
+                            similarities.append(sim)
+                    
+                    if distances:
+                        st.metric("Mean Distance", f"{np.mean(distances):.4f}")
+                        st.metric("Mean Similarity", f"{np.mean(similarities):.4f}")
+                        st.metric("Distance Std Dev", f"{np.std(distances):.4f}")
+                        
+                        # Distance distribution
+                        fig = go.Figure(data=[
+                            go.Histogram(x=distances, name="Distances", nbinsx=30),
+                        ])
+                        fig.update_layout(
+                            title="Distribution of Pairwise Distances",
+                            xaxis_title="Distance",
+                            yaxis_title="Count",
+                            height=300
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+            
+            st.divider()
+            
+            st.subheader("Kernel Operations")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                node1_id = st.selectbox("Node 1", list(universe.nodes.keys()), key="math_node1")
+                node2_id = st.selectbox("Node 2", list(universe.nodes.keys()), key="math_node2")
+            
+            with col2:
+                if st.button("Compute Kernel"):
+                    node1 = universe.nodes[node1_id]
+                    node2 = universe.nodes[node2_id]
+                    
+                    sim = compute_kernel_similarity(
+                        node1.kernel_features,
+                        node2.kernel_features,
+                        universe.kernel_type,
+                        universe.kernel_params.get('gamma', 1.0)
+                    )
+                    
+                    dist = np.linalg.norm(
+                        np.array(node1.kernel_features) - np.array(node2.kernel_features)
+                    )
+                    
+                    st.metric("Kernel Similarity K(s₁, s₂)", f"{sim:.6f}")
+                    st.metric("Euclidean Distance ||s₁ - s₂||", f"{dist:.6f}")
+                    
+                    st.latex(r"K(s_1, s_2) = e^{-\gamma \|s_1 - s_2\|^2}")
+            
+            # Save universe
+            st.divider()
+            st.subheader("💾 Save Universe")
+            
+            filename = st.text_input(
+                "Filename",
+                value=f"{universe.name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.json"
+            )
+            
+            if st.button("Save to File"):
+                output_path = f"/mnt/user-data/outputs/{filename}"
+                save_rkhs_universe(universe, output_path)
+                st.success(f"✅ Saved to {output_path}")
+                
+                # Provide download
+                with open(output_path, 'r') as f:
+                    st.download_button(
+                        "📥 Download",
+                        f.read(),
+                        file_name=filename,
+                        mime="application/json"
+                    )
+
+if __name__ == "__main__":
+    main()
